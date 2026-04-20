@@ -1,0 +1,141 @@
+---
+export const prerender = false;
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+const env = Astro.locals.env;
+const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
+---
+<AdminLayout title="Tags">
+  <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:24px;">
+    <h2 style="font-size:16px; font-weight:800; color:#1e293b; margin:0 0 16px;">Add Tag</h2>
+    <form id="createTagForm" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div>
+        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Name</label>
+        <input
+          name="name"
+          required
+          placeholder="e.g. Animals"
+          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:160px;"
+        />
+      </div>
+      <div>
+        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Category</label>
+        <select
+          name="category"
+          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; background:white;"
+        >
+          <option value="age">Age</option>
+          <option value="category">Category</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Sort Order</label>
+        <input
+          name="sort_order"
+          type="number"
+          value="0"
+          min="0"
+          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:90px;"
+        />
+      </div>
+      <button
+        type="submit"
+        style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer;"
+      >
+        Add Tag
+      </button>
+    </form>
+  </div>
+
+  <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+    {tags.results.length === 0 ? (
+      <div style="text-align:center; color:#94a3b8; padding:40px 0; font-size:15px;">
+        No tags yet. Add your first tag above.
+      </div>
+    ) : (
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:2px solid #f1f5f9;">
+            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Name</th>
+            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Category</th>
+            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Sort Order</th>
+            <th style="padding:8px 12px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {(tags.results as any[]).map((tag) => (
+            <tr data-id={tag.id} style="border-bottom:1px solid #f8fafc;">
+              <td style="padding:10px 12px; font-size:14px; font-weight:700;">
+                <span id={`name-${tag.id}`}>{tag.name}</span>
+              </td>
+              <td style="padding:10px 12px; font-size:14px; color:#64748b;">
+                <span id={`cat-${tag.id}`} style={`display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:700; background:${tag.category === 'age' ? '#e0f2fe' : '#dcfce7'}; color:${tag.category === 'age' ? '#0369a1' : '#166534'};`}>
+                  {tag.category}
+                </span>
+              </td>
+              <td style="padding:10px 12px; font-size:14px; color:#64748b;">
+                {tag.sort_order}
+              </td>
+              <td style="padding:10px 12px; display:flex; gap:6px; justify-content:flex-end;">
+                <button
+                  onclick={`deleteTag('${tag.id}')`}
+                  style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:5px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+
+  <script>
+    const form = document.getElementById('createTagForm') as HTMLFormElement;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target as HTMLFormElement);
+      const data = {
+        name: String(fd.get('name') ?? '').trim(),
+        category: String(fd.get('category') ?? 'category'),
+        sort_order: parseInt(String(fd.get('sort_order') ?? '0'), 10) || 0,
+      };
+      if (!data.name) return;
+
+      const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
+
+      const res = await fetch('/api/admin/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const err = await res.json().catch(() => ({} as Record<string, string>));
+        alert((err as Record<string, string>)['error'] ?? 'Failed to create tag');
+        btn.disabled = false;
+        btn.textContent = 'Add Tag';
+      }
+    });
+
+    async function deleteTag(id: string) {
+      if (!confirm('Delete this tag? Topics using this tag will be unaffected.')) return;
+      const res = await fetch('/api/admin/tags', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert('Failed to delete tag');
+      }
+    }
+  </script>
+</AdminLayout>

@@ -1,0 +1,387 @@
+---
+export const prerender = false;
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import SoundEditor from '../../../../components/SoundEditor.svelte';
+import ImageUpload from '../../../../components/ImageUpload.svelte';
+import ArrowLeft from 'phosphor-astro/ArrowLeftBold.astro';
+import CheckCircle from 'phosphor-astro/CheckCircleBold.astro';
+import { VOICES } from '../../../../lib/voices';
+
+const { id } = Astro.params;
+const env = Astro.locals.env;
+
+const topic = await env.DB.prepare('SELECT * FROM topics WHERE id = ?')
+  .bind(id)
+  .first<{ id: string; title: string; slug: string }>();
+
+if (!topic) return Astro.redirect('/admin/topics');
+
+const subjects = await env.DB.prepare(
+  'SELECT * FROM subjects WHERE topic_id = ? ORDER BY sort_order ASC'
+).bind(id).all();
+
+const voicesJson = JSON.stringify(VOICES);
+---
+<AdminLayout title={`Subjects: ${topic.title}`}>
+  <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <a href="/admin/topics" style="color:#64748b; text-decoration:none; font-size:14px; font-weight:700;">← Topics</a>
+      <span style="color:#cbd5e1;">/</span>
+      <span style="font-size:14px; font-weight:700; color:#475569;">{topic.title}</span>
+    </div>
+    <a
+      href={`/topic/${topic.slug}`}
+      target="_blank"
+      rel="noopener"
+      style="background:#f1f5f9; color:#475569; padding:8px 16px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:700;"
+    >
+      ↗ Preview
+    </a>
+  </div>
+
+  <div style="display:grid; grid-template-columns:280px 1fr; gap:24px; align-items:start;">
+
+    <!-- LEFT: Subject list -->
+    <div>
+      <div style="background:white; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <div style="font-size:14px; font-weight:800; color:#1e293b; margin-bottom:12px;">
+          Subjects
+          <span style="font-size:13px; font-weight:400; color:#94a3b8; margin-left:4px;" id="subjectCountBadge">
+            ({subjects.results.length})
+          </span>
+        </div>
+
+        <div id="subjectList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px; max-height:60vh; overflow-y:auto;">
+          {(subjects.results as any[]).map((s, idx) => (
+            <button
+              data-id={s.id}
+              data-title={s.title}
+              data-sort={s.sort_order}
+              data-imagekey={s.image_key ?? ''}
+              onclick={`selectSubject('${s.id}')`}
+              style="text-align:left; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; color:#1e293b; transition:all 0.15s; display:flex; align-items:center; gap:8px;"
+            >
+              <span style="color:#94a3b8; font-size:12px; min-width:20px;">{idx + 1}.</span>
+              <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{s.title}</span>
+            </button>
+          ))}
+          {subjects.results.length === 0 && (
+            <div style="color:#94a3b8; font-size:13px; text-align:center; padding:16px 0;">
+              No subjects yet.
+            </div>
+          )}
+        </div>
+
+        <button
+          onclick="showNewSubjectForm()"
+          style="width:100%; background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; transition:background 0.15s;"
+          onmouseover="this.style.background='#2f8de8'"
+          onmouseout="this.style.background='#4BA3FF'"
+        >
+          + Add Subject
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT: Editor panel -->
+    <div id="editorPanel">
+
+      <!-- No selection message -->
+      <div
+        id="noSelectionMessage"
+        style="background:white; border-radius:12px; padding:48px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); text-align:center; color:#94a3b8;"
+      >
+        <div style="margin-bottom:12px; color:#cbd5e1;"><ArrowLeft /></div>
+        <div style="font-size:15px; font-weight:700;">Select a subject to edit</div>
+        <div style="font-size:13px; margin-top:4px;">or add a new one</div>
+      </div>
+
+      <!-- Subject editor (hidden until subject selected) -->
+      <div id="subjectEditor" style="display:none;">
+        <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;">
+          <input type="hidden" id="selectedSubjectId" />
+
+          <!-- Title row -->
+          <div style="margin-bottom:20px;">
+            <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">Subject Title</label>
+            <div style="display:flex; gap:8px;">
+              <input
+                id="subjectTitle"
+                type="text"
+                style="flex:1; border:1.5px solid #cbd5e1; border-radius:8px; padding:10px 14px; font-size:16px; font-family:inherit; outline:none; font-weight:700; transition:border-color 0.15s;"
+                onfocus="this.style.borderColor='#4BA3FF'"
+                onblur="this.style.borderColor='#cbd5e1'"
+                placeholder="e.g. Dog"
+              />
+              <button
+                onclick="saveSubjectTitle()"
+                id="saveTitleBtn"
+                style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background 0.15s;"
+                onmouseover="this.style.background='#2f8de8'"
+                onmouseout="this.style.background='#4BA3FF'"
+              >
+                Save Title
+              </button>
+            </div>
+            <div id="titleSavedMsg" style="font-size:12px; color:#16a34a; font-weight:700; margin-top:4px; display:none; align-items:center; gap:4px;"><CheckCircle /> Saved</div>
+          </div>
+
+          <!-- Image upload -->
+          <div style="margin-bottom:4px;">
+            <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:8px;">Subject Image</label>
+            <div id="imageUploadMount"></div>
+          </div>
+
+          <!-- Delete subject -->
+          <div style="margin-top:20px; padding-top:16px; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end;">
+            <button
+              onclick="deleteSubject()"
+              style="background:#fee2e2; color:#ef4444; border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.15s;"
+              onmouseover="this.style.background='#fecaca'"
+              onmouseout="this.style.background='#fee2e2'"
+            >
+              Delete Subject
+            </button>
+          </div>
+        </div>
+
+        <!-- Sound Editor Svelte island -->
+        <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <SoundEditor client:load voices={VOICES} />
+        </div>
+      </div>
+
+      <!-- New subject form (hidden by default) -->
+      <div
+        id="newSubjectForm"
+        style="display:none; background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);"
+      >
+        <h3 style="font-size:16px; font-weight:800; color:#1e293b; margin:0 0 20px;">New Subject</h3>
+
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">Title</label>
+          <input
+            id="newSubjectTitle"
+            type="text"
+            placeholder="e.g. Dog"
+            style="width:100%; border:1.5px solid #cbd5e1; border-radius:8px; padding:11px 14px; font-size:16px; font-family:inherit; outline:none; font-weight:700; transition:border-color 0.15s;"
+            onfocus="this.style.borderColor='#4BA3FF'"
+            onblur="this.style.borderColor='#cbd5e1'"
+            onkeydown="if(event.key==='Enter')createSubject()"
+          />
+        </div>
+
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button
+            onclick="createSubject()"
+            id="createSubjectBtn"
+            style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 22px; font-size:15px; font-weight:800; cursor:pointer; font-family:inherit; transition:background 0.15s;"
+            onmouseover="this.style.background='#2f8de8'"
+            onmouseout="this.style.background='#4BA3FF'"
+          >
+            Create Subject
+          </button>
+          <button
+            onclick="hideNewSubjectForm()"
+            style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 18px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;"
+          >
+            Cancel
+          </button>
+          <div id="createError" style="font-size:13px; color:#ef4444; font-weight:700; display:none;"></div>
+        </div>
+      </div>
+
+    </div><!-- /editorPanel -->
+  </div><!-- /grid -->
+
+  <!-- ImageUpload island — mounted dynamically via JS into #imageUploadMount -->
+  <div id="imageUploadRoot" style="display:none;">
+    <ImageUpload client:load prefix="images/subjects" onuploaded="__imageUploaded" />
+  </div>
+
+  <script define:vars={{ topicId: id, voicesJson }}>
+    // ── State ──────────────────────────────────────────────────────────────
+    let currentSubjectId = null;
+
+    // ── Subject selection ─────────────────────────────────────────────────
+    function selectSubject(subjectId) {
+      currentSubjectId = subjectId;
+
+      // Find the button for this subject
+      const btn = document.querySelector(`[data-id="${subjectId}"]`);
+      const title = btn?.dataset.title ?? '';
+
+      // Update all button styles
+      document.querySelectorAll('#subjectList button').forEach(b => {
+        const isSelected = b.dataset.id === subjectId;
+        b.style.background = isSelected ? '#eff8ff' : '#f8fafc';
+        b.style.borderColor = isSelected ? '#4BA3FF' : '#e2e8f0';
+        b.style.color = isSelected ? '#0369a1' : '#1e293b';
+      });
+
+      // Hide other panels, show editor
+      document.getElementById('noSelectionMessage').style.display = 'none';
+      document.getElementById('newSubjectForm').style.display = 'none';
+      document.getElementById('subjectEditor').style.display = 'block';
+
+      // Fill in fields
+      document.getElementById('selectedSubjectId').value = subjectId;
+      document.getElementById('subjectTitle').value = title;
+      document.getElementById('titleSavedMsg').style.display = 'none';
+
+      // Dispatch event for SoundEditor Svelte island
+      document.dispatchEvent(new CustomEvent('selectSubject', {
+        detail: { subjectId, voices: JSON.parse(voicesJson) }
+      }));
+    }
+
+    // ── Save title ─────────────────────────────────────────────────────────
+    async function saveSubjectTitle() {
+      const id = document.getElementById('selectedSubjectId').value;
+      const title = document.getElementById('subjectTitle').value.trim();
+      if (!id || !title) return;
+
+      const btn = document.getElementById('saveTitleBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      const res = await fetch('/api/admin/subjects', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, title }),
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Save Title';
+
+      if (res.ok) {
+        // Update button label in sidebar
+        const listBtn = document.querySelector(`[data-id="${id}"]`);
+        if (listBtn) {
+          listBtn.dataset.title = title;
+          listBtn.querySelector('span:last-child').textContent = title;
+        }
+        const msg = document.getElementById('titleSavedMsg');
+        msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 2500);
+      } else {
+        alert('Failed to save title');
+      }
+    }
+
+    // ── Delete subject ─────────────────────────────────────────────────────
+    async function deleteSubject() {
+      const id = document.getElementById('selectedSubjectId').value;
+      const titleEl = document.getElementById('subjectTitle');
+      const title = titleEl?.value || 'this subject';
+      if (!confirm(`Delete "${title}" and all its sounds?`)) return;
+
+      const res = await fetch('/api/admin/subjects', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+
+      if (res.ok) {
+        // Remove from sidebar
+        const btn = document.querySelector(`[data-id="${id}"]`);
+        if (btn) btn.remove();
+        // Renumber
+        document.querySelectorAll('#subjectList button').forEach((b, i) => {
+          b.querySelector('span:first-child').textContent = `${i + 1}.`;
+        });
+        // Show no-selection state
+        document.getElementById('subjectEditor').style.display = 'none';
+        document.getElementById('noSelectionMessage').style.display = 'block';
+        currentSubjectId = null;
+      } else {
+        alert('Failed to delete subject');
+      }
+    }
+
+    // ── New subject form ───────────────────────────────────────────────────
+    function showNewSubjectForm() {
+      document.getElementById('subjectEditor').style.display = 'none';
+      document.getElementById('noSelectionMessage').style.display = 'none';
+      document.getElementById('newSubjectForm').style.display = 'block';
+      document.getElementById('createError').style.display = 'none';
+      const input = document.getElementById('newSubjectTitle');
+      input.value = '';
+      input.focus();
+
+      // Deselect sidebar
+      document.querySelectorAll('#subjectList button').forEach(b => {
+        b.style.background = '#f8fafc';
+        b.style.borderColor = '#e2e8f0';
+        b.style.color = '#1e293b';
+      });
+      currentSubjectId = null;
+    }
+
+    function hideNewSubjectForm() {
+      document.getElementById('newSubjectForm').style.display = 'none';
+      document.getElementById('noSelectionMessage').style.display = 'block';
+    }
+
+    async function createSubject() {
+      const titleInput = document.getElementById('newSubjectTitle');
+      const title = titleInput.value.trim();
+      if (!title) {
+        titleInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('createSubjectBtn');
+      const errEl = document.getElementById('createError');
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+      errEl.style.display = 'none';
+
+      // Compute next sort_order
+      const existing = document.querySelectorAll('#subjectList button').length;
+
+      const res = await fetch('/api/admin/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_id: topicId, title, sort_order: existing }),
+      });
+
+      if (res.ok) {
+        const subject = await res.json();
+
+        // Add to sidebar
+        const list = document.getElementById('subjectList');
+        const noSubMsg = list.querySelector('div[style*="No subjects"]');
+        if (noSubMsg) noSubMsg.remove();
+
+        const newBtn = document.createElement('button');
+        newBtn.dataset.id = subject.id;
+        newBtn.dataset.title = subject.title;
+        newBtn.dataset.sort = subject.sort_order;
+        newBtn.dataset.imagekey = '';
+        newBtn.setAttribute('onclick', `selectSubject('${subject.id}')`);
+        newBtn.style.cssText = 'text-align:left; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; color:#1e293b; transition:all 0.15s; display:flex; align-items:center; gap:8px;';
+        newBtn.innerHTML = `<span style="color:#94a3b8; font-size:12px; min-width:20px;">${existing + 1}.</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${subject.title}</span>`;
+        list.appendChild(newBtn);
+
+        btn.disabled = false;
+        btn.textContent = 'Create Subject';
+
+        // Auto-select newly created subject
+        document.getElementById('newSubjectForm').style.display = 'none';
+        selectSubject(subject.id);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        errEl.textContent = err.error ?? 'Failed to create subject.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Create Subject';
+      }
+    }
+
+    // ── Title: Enter key shortcut ──────────────────────────────────────────
+    document.getElementById('subjectTitle').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveSubjectTitle();
+    });
+  </script>
+</AdminLayout>

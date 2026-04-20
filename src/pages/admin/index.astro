@@ -1,0 +1,166 @@
+---
+export const prerender = false;
+import PawPrint from 'phosphor-astro/PawPrintBold.astro';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiny Taps Admin Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet" />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        font-family: 'Nunito', sans-serif;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 16px;
+      }
+      .card {
+        background: white;
+        padding: 40px;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        max-width: 380px;
+      }
+      .brand {
+        text-align: center;
+        font-size: 32px;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 800;
+        color: #1e293b;
+        margin: 0 0 28px;
+        text-align: center;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: #475569;
+        margin-bottom: 5px;
+      }
+      input {
+        width: 100%;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 11px 14px;
+        font-size: 15px;
+        font-family: inherit;
+        outline: none;
+        margin-bottom: 16px;
+        transition: border-color 0.15s;
+      }
+      input:focus {
+        border-color: #4BA3FF;
+      }
+      button[type="submit"] {
+        width: 100%;
+        background: #4BA3FF;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.15s;
+        margin-top: 4px;
+      }
+      button[type="submit"]:hover {
+        background: #2f8de8;
+      }
+      button[type="submit"]:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+      .error {
+        color: #ef4444;
+        font-size: 14px;
+        font-weight: 700;
+        margin-top: 12px;
+        text-align: center;
+        display: none;
+      }
+      .error.visible {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="brand" style="display:flex;justify-content:center;margin-bottom:4px;color:#FF4B4B;"><PawPrint /></div>
+      <h1>Admin Login</h1>
+      <form id="loginForm" novalidate>
+        <label for="username">Username</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          autocomplete="username"
+          required
+          autofocus
+        />
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          required
+        />
+        <button type="submit" id="submitBtn">Login</button>
+        <div class="error" id="errorMsg">Invalid username or password.</div>
+      </form>
+    </div>
+
+    <script>
+      const form = document.getElementById('loginForm') as HTMLFormElement;
+      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+      const errorMsg = document.getElementById('errorMsg') as HTMLElement;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorMsg.classList.remove('visible');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Logging in…';
+
+        const formData = new FormData(form);
+        const username = String(formData.get('username') ?? '').trim();
+        const password = String(formData.get('password') ?? '');
+
+        try {
+          const res = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+
+          if (res.ok) {
+            window.location.href = '/admin/dashboard';
+          } else {
+            errorMsg.classList.add('visible');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Login';
+          }
+        } catch {
+          errorMsg.textContent = 'Network error. Please try again.';
+          errorMsg.classList.add('visible');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Login';
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,201 @@
+---
+export const prerender = false;
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import CheckCircle from 'phosphor-astro/CheckCircleBold.astro';
+
+const { id } = Astro.params;
+const env = Astro.locals.env;
+
+const topic = await env.DB.prepare('SELECT * FROM topics WHERE id = ?').bind(id).first<{
+  id: string;
+  title: string;
+  slug: string;
+  background_key: string | null;
+  created_at: string;
+  updated_at: string;
+}>();
+
+if (!topic) return Astro.redirect('/admin/topics');
+
+const allTags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
+const topicTagRows = await env.DB.prepare('SELECT tag_id FROM topic_tags WHERE topic_id = ?').bind(id).all();
+const topicTagIds = new Set((topicTagRows.results as any[]).map((r) => r.tag_id));
+---
+<AdminLayout title={`Edit: ${topic.title}`}>
+  <div style="max-width:640px;">
+    <div style="background:white; border-radius:12px; padding:32px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <form id="editTopicForm">
+        <input type="hidden" name="id" value={topic.id} />
+
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">
+            Title <span style="color:#ef4444;">*</span>
+          </label>
+          <input
+            name="title"
+            id="titleInput"
+            required
+            value={topic.title}
+            style="width:100%; border:1.5px solid #cbd5e1; border-radius:8px; padding:11px 14px; font-size:16px; font-family:inherit; outline:none; transition:border-color 0.15s;"
+            onfocus="this.style.borderColor='#4BA3FF'"
+            onblur="this.style.borderColor='#cbd5e1'"
+          />
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">
+            Slug <span style="color:#ef4444;">*</span>
+          </label>
+          <input
+            name="slug"
+            id="slugInput"
+            required
+            value={topic.slug}
+            style="width:100%; border:1.5px solid #cbd5e1; border-radius:8px; padding:11px 14px; font-size:15px; font-family:'Courier New',monospace; outline:none; transition:border-color 0.15s; color:#475569;"
+            onfocus="this.style.borderColor='#4BA3FF'"
+            onblur="this.style.borderColor='#cbd5e1'"
+          />
+          <div style="font-size:12px; color:#94a3b8; margin-top:4px;">
+            Public URL: /topic/<strong id="slugPreview">{topic.slug}</strong>
+          </div>
+        </div>
+
+        {(allTags.results as any[]).length > 0 && (
+          <div style="margin-bottom:24px;">
+            <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:10px;">
+              Tags
+            </label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+              {(allTags.results as any[]).map((tag) => {
+                const checked = topicTagIds.has(tag.id);
+                return (
+                  <label
+                    style={`display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 14px; border:1.5px solid ${checked ? '#4BA3FF' : '#e2e8f0'}; background:${checked ? '#eff8ff' : 'white'}; border-radius:20px; font-size:14px; font-weight:700; transition:all 0.15s; user-select:none;`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="tag_ids"
+                      value={tag.id}
+                      checked={checked}
+                      style="display:none;"
+                      onchange="updateTagStyle(this)"
+                    />
+                    <span style={`display:inline-block; padding:1px 8px; border-radius:20px; font-size:12px; background:${tag.category === 'age' ? '#e0f2fe' : '#dcfce7'}; color:${tag.category === 'age' ? '#0369a1' : '#166534'};`}>
+                      {tag.category}
+                    </span>
+                    {tag.name}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style="display:flex; gap:12px; align-items:center; padding-top:8px; border-top:1px solid #f1f5f9;">
+          <button
+            type="submit"
+            id="submitBtn"
+            style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:11px 24px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; transition:background 0.15s;"
+            onmouseover="this.style.background='#2f8de8'"
+            onmouseout="this.style.background='#4BA3FF'"
+          >
+            Save Changes
+          </button>
+          <a
+            href={`/admin/topics/${topic.id}/subjects`}
+            style="background:#dcfce7; color:#166534; padding:11px 20px; border-radius:8px; font-size:15px; font-weight:700; text-decoration:none;"
+          >
+            Manage Subjects
+          </a>
+          <a
+            href="/admin/topics"
+            style="padding:11px 20px; font-size:15px; font-weight:700; color:#64748b; text-decoration:none;"
+          >
+            Cancel
+          </a>
+          <div id="successMsg" style="color:#16a34a; font-size:14px; font-weight:700; display:none; margin-left:8px; align-items:center; gap:4px;">
+            <CheckCircle /> Saved
+          </div>
+          <div id="errorMsg" style="color:#ef4444; font-size:14px; font-weight:700; display:none; margin-left:8px;"></div>
+        </div>
+      </form>
+    </div>
+
+    <div style="background:white; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-top:16px;">
+      <div style="font-size:13px; font-weight:700; color:#94a3b8; margin-bottom:4px;">Topic ID</div>
+      <code style="font-size:13px; color:#475569; background:#f8fafc; padding:4px 10px; border-radius:6px; display:inline-block;">{topic.id}</code>
+      <div style="font-size:13px; font-weight:700; color:#94a3b8; margin-bottom:4px; margin-top:12px;">Created</div>
+      <div style="font-size:13px; color:#475569;">{topic.created_at}</div>
+      <div style="font-size:13px; font-weight:700; color:#94a3b8; margin-bottom:4px; margin-top:12px;">Last Updated</div>
+      <div style="font-size:13px; color:#475569;">{topic.updated_at}</div>
+    </div>
+  </div>
+
+  <script>
+    const slugInput = document.getElementById('slugInput');
+    const slugPreview = document.getElementById('slugPreview');
+    const form = document.getElementById('editTopicForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+
+    slugInput.addEventListener('input', (e) => {
+      slugPreview.textContent = e.target.value || '…';
+    });
+
+    function updateTagStyle(checkbox) {
+      const label = checkbox.closest('label');
+      if (checkbox.checked) {
+        label.style.borderColor = '#4BA3FF';
+        label.style.background = '#eff8ff';
+      } else {
+        label.style.borderColor = '#e2e8f0';
+        label.style.background = 'white';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.style.display = 'none';
+      successMsg.style.display = 'none';
+
+      const title = form.title.value.trim();
+      const slug = slugInput.value.trim();
+
+      if (!title || !slug) {
+        errorMsg.textContent = 'Title and slug are required.';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      const tagCheckboxes = form.querySelectorAll('input[name="tag_ids"]:checked');
+      const tag_ids = Array.from(tagCheckboxes).map(cb => cb.value);
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+
+      try {
+        const res = await fetch('/api/admin/topics', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: form.id.value, title, slug, tag_ids }),
+        });
+
+        if (res.ok) {
+          successMsg.style.display = 'block';
+          setTimeout(() => { successMsg.style.display = 'none'; }, 3000);
+        } else {
+          const err = await res.json();
+          errorMsg.textContent = err.error ?? 'Failed to save changes.';
+          errorMsg.style.display = 'block';
+        }
+      } catch {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Changes';
+      }
+    });
+  </script>
+</AdminLayout>

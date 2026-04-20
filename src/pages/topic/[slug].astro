@@ -1,0 +1,365 @@
+---
+export const prerender = false;
+import PublicLayout from '../../layouts/PublicLayout.astro';
+import NavHome from '../../components/NavHome.svelte';
+import ShootingStar from 'phosphor-astro/ShootingStarBold.astro';
+import Hourglass from 'phosphor-astro/HourglassBold.astro';
+import MusicNotes from 'phosphor-astro/MusicNotesBold.astro';
+import SubjectCard from '../../components/SubjectCard.svelte';
+import AudioEngine from '../../components/AudioEngine.svelte';
+
+const { slug } = Astro.params;
+const env = Astro.locals.env;
+
+const r2Base = (env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+
+// Resolve topic by slug
+const topic = await env.DB.prepare('SELECT * FROM topics WHERE slug = ?')
+  .bind(slug)
+  .first<{
+    id: string;
+    title: string;
+    slug: string;
+    background_key: string | null;
+  }>();
+
+if (!topic) return Astro.redirect('/');
+
+// Fetch all subjects for this topic
+const subjectsResult = await env.DB.prepare(
+  'SELECT * FROM subjects WHERE topic_id = ? ORDER BY sort_order ASC'
+).bind(topic.id).all();
+
+const subjectRows = subjectsResult.results as {
+  id: string;
+  title: string;
+  image_key: string | null;
+  sort_order: number;
+}[];
+
+// For each subject, resolve sound URLs (same logic as the API route)
+// We do this server-side so the client receives pre-resolved URLs — zero API calls on tap.
+type ResolvedSound = {
+  id: string;
+  sortOrder: number;
+  delayBeforeMs: number;
+  url: string;
+};
+
+type SubjectWithSounds = {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  sortOrder: number;
+  sounds: ResolvedSound[];
+};
+
+const subjects: SubjectWithSounds[] = await Promise.all(
+  subjectRows.map(async (subject) => {
+    const soundsResult = await env.DB.prepare(
+      'SELECT * FROM sounds WHERE subject_id = ? ORDER BY sort_order ASC'
+    ).bind(subject.id).all();
+
+    const soundRows = soundsResult.results as {
+      id: string;
+      sort_order: number;
+      delay_before_ms: number;
+      type: 'text' | 'file';
+      text_content: string | null;
+      language: string | null;
+      voice: string | null;
+      file_key: string | null;
+      cache_key: string | null;
+    }[];
+
+    const resolvedSounds: ResolvedSound[] = [];
+
+    for (const sound of soundRows) {
+      try {
+        let url: string | null = null;
+
+        if (sound.type === 'file') {
+          if (sound.file_key) {
+            url = `${r2Base}/${sound.file_key}`;
+          }
+        } else {
+          // type === 'text'
+          if (sound.cache_key) {
+            url = `${r2Base}/${sound.cache_key}`;
+          }
+          // If no cache_key yet, skip — TTS not yet generated/available
+        }
+
+        if (url) {
+          resolvedSounds.push({
+            id: sound.id,
+            sortOrder: sound.sort_order,
+            delayBeforeMs: sound.delay_before_ms,
+            url,
+          });
+        }
+      } catch {
+        // skip failed sounds
+      }
+    }
+
+    return {
+      id: subject.id,
+      title: subject.title,
+      imageUrl: subject.image_key ? `${r2Base}/${subject.image_key}` : null,
+      sortOrder: subject.sort_order,
+      sounds: resolvedSounds,
+    };
+  })
+);
+
+// Build the AudioEngine subjects prop
+const audioSubjects = subjects.map(s => ({
+  subjectId: s.id,
+  sounds: s.sounds,
+}));
+---
+<PublicLayout title={`${topic.title} — Tiny Taps`} viewportLock={true}>
+  <div class="play-page">
+
+    <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+    <header class="play-header">
+      <NavHome client:load href="/" />
+      <h1 class="topic-title">{topic.title.toUpperCase()}</h1>
+      <!-- Spacer to balance the home button -->
+      <div class="header-spacer" aria-hidden="true"></div>
+    </header>
+
+    <!-- ── Subject grid ─────────────────────────────────────────────────── -->
+    <main class="subject-area" id="subjectArea">
+
+      {subjects.length === 0 ? (
+        <!-- Empty state: visual cue only, no text-only message -->
+        <div class="empty-state">
+          <div class="empty-illustration" aria-label="Coming soon">
+            <span class="empty-icon-main"><ShootingStar color="#FFD93D" /></span>
+            <span class="empty-icon-sub"><Hourglass color="#4BA3FF" /></span>
+          </div>
+        </div>
+      ) : (
+        <div class="subject-grid" id="subjectGrid">
+          {subjects.map(subject => (
+            <div class="card-slot" key={subject.id}>
+              <SubjectCard
+                client:load
+                id={subject.id}
+                title={subject.title}
+                imageUrl={subject.imageUrl}
+                sounds={subject.sounds}
+                onTap={(subjectId) => {
+                  // Dispatch event picked up by AudioEngine
+                  document.dispatchEvent(
+                    new CustomEvent('tinytaps:play', { detail: { subjectId } })
+                  );
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <!-- AudioEngine: headless, manages all preloading and playback -->
+      <AudioEngine
+        client:load
+        subjects={audioSubjects}
+        onReady={() => {
+          document.getElementById('loadingOverlay')?.remove();
+        }}
+      />
+
+    </main>
+
+    <!-- ── Loading overlay (shown while AudioEngine preloads buffers) ───── -->
+    {subjects.length > 0 && audioSubjects.some(s => s.sounds.length > 0) && (
+      <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+        <div class="loading-spinner"><MusicNotes color="#FF4B4B" /></div>
+      </div>
+    )}
+
+  </div>
+
+  <script>
+    // ── Wire SubjectCard onTap → AudioEngine.play ────────────────────────
+    // AudioEngine exposes a play(subjectId) method.
+    // SubjectCards dispatch 'tinytaps:play' events.
+    // We bridge them here so there's no tight coupling between islands.
+
+    let audioEngine = null;
+
+    // AudioEngine registers itself when mounted
+    document.addEventListener('tinytaps:audioEngineReady', (e) => {
+      audioEngine = e.detail.engine;
+    });
+
+    // SubjectCards dispatch this event on tap
+    document.addEventListener('tinytaps:play', (e) => {
+      const { subjectId } = e.detail;
+      if (audioEngine && typeof audioEngine.play === 'function') {
+        audioEngine.play(subjectId);
+      }
+    });
+
+    // Auto-remove loading overlay after 5s as fallback (e.g. if no sounds)
+    setTimeout(() => {
+      document.getElementById('loadingOverlay')?.remove();
+    }, 5000);
+  </script>
+</PublicLayout>
+
+<style>
+  /* ── Full-viewport play page ────────────────────────────────────────── */
+  .play-page {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh; /* dynamic viewport height for mobile */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #FFF9E6;
+    box-sizing: border-box;
+  }
+
+  /* ── Top bar ──────────────────────────────────────────────────────────── */
+  .play-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  .topic-title {
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(20px, 5vw, 48px);
+    font-weight: 800;
+    color: #4A4A4A;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+    flex: 1;
+    line-height: 1.1;
+    /* Prevent overflow on long names */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Spacer to keep title centered against the home button */
+  .header-spacer {
+    width: 100px;
+    flex-shrink: 0;
+  }
+
+  /* ── Subject area ─────────────────────────────────────────────────────── */
+  .subject-area {
+    flex: 1;
+    min-height: 0;
+    padding: 8px 16px 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Subject grid ─────────────────────────────────────────────────────── */
+  .subject-grid {
+    display: grid;
+    /* 2 columns on phones, 3-4 on tablets, auto-fit on larger screens */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    align-content: start;
+  }
+
+  @media (min-width: 600px) {
+    .subject-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .subject-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .subject-grid {
+      grid-template-columns: repeat(5, 1fr);
+    }
+  }
+
+  .card-slot {
+    min-width: 100px;
+    min-height: 100px;
+    display: flex;
+  }
+
+  .card-slot > :global(*) {
+    width: 100%;
+  }
+
+  /* ── Empty state ──────────────────────────────────────────────────────── */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .empty-illustration {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    animation: breathe 3s ease-in-out infinite;
+  }
+
+  .empty-icon-main :global(svg) {
+    width: 96px;
+    height: 96px;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+  }
+
+  .empty-icon-sub :global(svg) {
+    width: 48px;
+    height: 48px;
+    opacity: 0.6;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1.0); }
+    50%       { transform: scale(1.04); }
+  }
+
+  /* ── Loading overlay ──────────────────────────────────────────────────── */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 249, 230, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .loading-spinner {
+    font-size: 56px;
+    animation: spin-bounce 1.2s ease-in-out infinite;
+  }
+
+  @keyframes spin-bounce {
+    0%   { transform: scale(1.0) rotate(0deg); }
+    50%  { transform: scale(1.15) rotate(180deg); }
+    100% { transform: scale(1.0) rotate(360deg); }
+  }
+</style>

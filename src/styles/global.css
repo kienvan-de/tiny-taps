@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #FFF9E6;
+  --color-playful: #FF4B4B;
+  --color-sky: #4BA3FF;
+  --color-meadow: #6BCB77;
+  --color-sun: #FFD93D;
+  --color-border-dark: #4A4A4A;
+
+  --font-family-display: 'Nunito', sans-serif;
+
+  --font-size-body: 24px;
+  --line-height-body: 1.4;
+  --font-size-heading: 48px;
+  --line-height-heading: 1.2;
+
+  --radius-card: 24px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background-color: #FFF9E6;
+  color: #4A4A4A;
+  font-size: 24px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Play page viewport lock — applied only on play page <body> */
+.viewport-lock {
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Breathing animation — SubjectCard idle state */
+@keyframes breathe {
+  0%, 100% { transform: scale(1.0); }
+  50%       { transform: scale(1.02); }
+}
+
+/* Wiggle animation — SubjectCard active state */
+@keyframes wiggle {
+  0%   { transform: scale(0.9) rotate(-3deg); }
+  25%  { transform: scale(0.9) rotate(3deg); }
+  50%  { transform: scale(0.9) rotate(-3deg); }
+  75%  { transform: scale(0.9) rotate(3deg); }
+  100% { transform: scale(1.0) rotate(0deg); }
+}
+
+/* Pulse glow — active state ring */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 4px #FFD93D; }
+  50%       { box-shadow: 0 0 0 8px #FFD93D88; }
+}
