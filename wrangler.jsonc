@@ -23,14 +23,16 @@
       "id": "9fe920d15efb469f91bd3a6595b1cc50"
     }
   ],
-  // ADMIN_USERNAME and ADMIN_PASSWORD_HASH must be set as secrets only:
+  // ADMIN_USERNAME and ADMIN_PASSWORD_HASH must be set as Worker secrets:
   //   wrangler secret put ADMIN_USERNAME
   //   wrangler secret put ADMIN_PASSWORD_HASH
-  //   wrangler secret put R2_PUBLIC_BASE_URL
   // CF_ENV controls Cache API — only enabled in production deployment
+  // R2_PUBLIC_BASE_URL is the public URL of your R2 bucket (not sensitive)
+  //   Enable public access in CF Dashboard → R2 → tiny-taps-assets → Settings → Public Access
   "vars": {
-    "CF_ENV": "production"
+    "CF_ENV": "production",
+    "R2_PUBLIC_BASE_URL": "https://assets.tinytaps.de"
   },
 
-  // Do NOT put credentials in "vars" — they would be plaintext in the repo.
+  // Do NOT put credentials (ADMIN_USERNAME, ADMIN_PASSWORD_HASH) in "vars" — use secrets.
 }
