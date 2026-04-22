@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ResolvedSound } from './AudioEngine.svelte';
-  import { ImageIcon } from 'phosphor-svelte';
+  import ImageIcon from 'phosphor-svelte/lib/ImageIcon.svelte';
 
   interface Props {
     id: string;

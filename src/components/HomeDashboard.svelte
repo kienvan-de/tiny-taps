@@ -2,7 +2,7 @@
   import TagFilter from './TagFilter.svelte';
   import TopicCard from './TopicCard.svelte';
   import Pagination from './Pagination.svelte';
-  import { SparkleIcon } from 'phosphor-svelte';
+  import SparkleIcon from 'phosphor-svelte/lib/SparkleIcon.svelte';
 
   // ── Types ──────────────────────────────────────────────────────────────
   interface Tag {

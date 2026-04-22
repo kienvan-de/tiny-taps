@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { UploadSimpleIcon, CheckCircleIcon } from 'phosphor-svelte';
+  import UploadSimpleIcon from 'phosphor-svelte/lib/UploadSimpleIcon.svelte';
+  import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircleIcon.svelte';
   interface Props {
     prefix?: string;
     currentUrl?: string | null;

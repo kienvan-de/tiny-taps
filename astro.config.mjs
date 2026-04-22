@@ -14,5 +14,10 @@ export default defineConfig({
   integrations: [svelte()],
   vite: {
     plugins: [tailwindcss()],
+    resolve: {
+      // phosphor-svelte/lib/* exports only have "svelte" condition (no "import"/"default")
+      // Add "svelte" to Vite's SSR resolve conditions so direct path imports work
+      conditions: ['svelte', 'browser', 'import', 'module', 'default'],
+    },
   },
 });

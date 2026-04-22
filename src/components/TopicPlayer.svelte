@@ -3,7 +3,7 @@
   import SubjectStack from './SubjectStack.svelte';
   import AudioEngine from './AudioEngine.svelte';
   import type { ResolvedSound, AudioEngineAPI } from './AudioEngine.svelte';
-  import { MusicNotesIcon } from 'phosphor-svelte';
+  import MusicNotesIcon from 'phosphor-svelte/lib/MusicNotesIcon.svelte';
 
   interface Props {
     slug: string;

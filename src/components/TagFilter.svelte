@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { TagIcon, SparkleIcon } from 'phosphor-svelte';
+  import TagIcon from 'phosphor-svelte/lib/TagIcon.svelte';
+  import SparkleIcon from 'phosphor-svelte/lib/SparkleIcon.svelte';
 
   interface Tag {
     id: string;

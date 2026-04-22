@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { HouseIcon } from 'phosphor-svelte';
+  import HouseIcon from 'phosphor-svelte/lib/HouseIcon.svelte';
 
   interface Props {
     href?: string;

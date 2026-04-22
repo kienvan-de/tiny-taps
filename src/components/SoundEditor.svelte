@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MusicNoteIcon, CheckCircleIcon } from 'phosphor-svelte';
+  import MusicNoteIcon from 'phosphor-svelte/lib/MusicNoteIcon.svelte';
+  import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircleIcon.svelte';
 
   interface Voice {
     id: string;
