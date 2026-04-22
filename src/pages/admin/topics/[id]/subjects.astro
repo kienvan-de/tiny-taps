@@ -3,16 +3,14 @@ export const prerender = false;
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import SoundEditor from '../../../../components/SoundEditor.svelte';
 import ImageUpload from '../../../../components/ImageUpload.svelte';
-import ArrowLeft from 'phosphor-astro/ArrowLeftBold.astro';
-import CheckCircle from 'phosphor-astro/CheckCircleBold.astro';
-import { VOICES } from '../../../../lib/voices';
+import { VOICES, LANGUAGE_LABELS } from '../../../../lib/voices';
+import { getPublicUrl } from '../../../../lib/r2';
 
 const { id } = Astro.params;
 const env = Astro.locals.env;
 
 const topic = await env.DB.prepare('SELECT * FROM topics WHERE id = ?')
-  .bind(id)
-  .first<{ id: string; title: string; slug: string }>();
+  .bind(id).first<{ id: string; title: string; slug: string }>();
 
 if (!topic) return Astro.redirect('/admin/topics');
 
@@ -20,369 +18,931 @@ const subjects = await env.DB.prepare(
   'SELECT * FROM subjects WHERE topic_id = ? ORDER BY sort_order ASC'
 ).bind(id).all();
 
+const sounds = await env.DB.prepare(
+  `SELECT s.* FROM sounds s
+   JOIN subjects sub ON sub.id = s.subject_id
+   WHERE sub.topic_id = ?
+   ORDER BY s.subject_id, s.sort_order ASC`
+).bind(id).all();
+
+// Group sounds by subject_id
+const soundsBySubject: Record<string, any[]> = {};
+for (const snd of sounds.results as any[]) {
+  if (!soundsBySubject[snd.subject_id]) soundsBySubject[snd.subject_id] = [];
+  soundsBySubject[snd.subject_id].push(snd);
+}
+
+function imageUrl(key: string | null): string | null {
+  return key ? getPublicUrl(env, key) : null;
+}
+
 const voicesJson = JSON.stringify(VOICES);
+const languageLabelsJson = JSON.stringify(LANGUAGE_LABELS);
 ---
+
 <AdminLayout title={`Subjects: ${topic.title}`}>
-  <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-    <div style="display:flex; align-items:center; gap:10px;">
-      <a href="/admin/topics" style="color:#64748b; text-decoration:none; font-size:14px; font-weight:700;">← Topics</a>
-      <span style="color:#cbd5e1;">/</span>
-      <span style="font-size:14px; font-weight:700; color:#475569;">{topic.title}</span>
+
+  <!-- ── Page header ──────────────────────────────────────── -->
+  <div class="page-header">
+    <div class="breadcrumb">
+      <a href="/admin/topics">← Topics</a>
+      <span class="sep">/</span>
+      <span>{topic.title}</span>
     </div>
-    <a
-      href={`/topic/${topic.slug}`}
-      target="_blank"
-      rel="noopener"
-      style="background:#f1f5f9; color:#475569; padding:8px 16px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:700;"
-    >
-      ↗ Preview
-    </a>
+    <div class="header-actions">
+      <a href={`/topic/${topic.slug}`} target="_blank" rel="noopener" class="btn btn-ghost">
+        ↗ Preview
+      </a>
+      <button id="addSubjectBtn" class="btn btn-primary">+ Add Subject</button>
+    </div>
   </div>
 
-  <div style="display:grid; grid-template-columns:280px 1fr; gap:24px; align-items:start;">
-
-    <!-- LEFT: Subject list -->
-    <div>
-      <div style="background:white; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-size:14px; font-weight:800; color:#1e293b; margin-bottom:12px;">
-          Subjects
-          <span style="font-size:13px; font-weight:400; color:#94a3b8; margin-left:4px;" id="subjectCountBadge">
-            ({subjects.results.length})
-          </span>
-        </div>
-
-        <div id="subjectList" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px; max-height:60vh; overflow-y:auto;">
-          {(subjects.results as any[]).map((s, idx) => (
-            <button
-              data-id={s.id}
-              data-title={s.title}
-              data-sort={s.sort_order}
-              data-imagekey={s.image_key ?? ''}
-              onclick={`selectSubject('${s.id}')`}
-              style="text-align:left; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; color:#1e293b; transition:all 0.15s; display:flex; align-items:center; gap:8px;"
-            >
-              <span style="color:#94a3b8; font-size:12px; min-width:20px;">{idx + 1}.</span>
-              <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{s.title}</span>
-            </button>
-          ))}
-          {subjects.results.length === 0 && (
-            <div style="color:#94a3b8; font-size:13px; text-align:center; padding:16px 0;">
-              No subjects yet.
-            </div>
-          )}
-        </div>
-
-        <button
-          onclick="showNewSubjectForm()"
-          style="width:100%; background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; transition:background 0.15s;"
-          onmouseover="this.style.background='#2f8de8'"
-          onmouseout="this.style.background='#4BA3FF'"
-        >
-          + Add Subject
-        </button>
+  <!-- ── Subject list ─────────────────────────────────────── -->
+  <div id="subjectList">
+    {subjects.results.length === 0 && (
+      <div id="emptyState" class="empty-state">
+        No subjects yet — click <strong>+ Add Subject</strong> to get started.
       </div>
+    )}
+    {(subjects.results as any[]).map((s, idx) => {
+      const sndList: any[] = soundsBySubject[s.id] ?? [];
+      return (
+        <div class="subject-card" data-id={s.id}>
+
+          <!-- Card header -->
+          <div class="card-header">
+            <span class="card-num">{idx + 1}</span>
+            {s.image_key
+              ? <img class="card-thumb" src={imageUrl(s.image_key)!} alt={s.title} />
+              : <div class="card-thumb-empty"><i class="ph-bold ph-image"></i></div>
+            }
+            <div class="card-meta">
+              <div class="card-title">{s.title}</div>
+              <div class="card-sounds-count">{sndList.length} sound{sndList.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-sm btn-edit" data-id={s.id}>Edit</button>
+              <button class="btn btn-sm btn-danger" data-id={s.id} data-title={s.title}>Delete</button>
+            </div>
+          </div>
+
+        </div>
+      );
+    })}
+  </div>
+
+  <!-- ── Modal overlay ────────────────────────────────────── -->
+  <div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+
+      <div class="modal-header">
+        <h2 id="modalTitle" class="modal-title">Add Subject</h2>
+        <button id="modalCloseBtn" class="modal-close" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Title -->
+        <div class="field">
+          <label class="field-label" for="subjectTitle">Name <span class="required">*</span></label>
+          <input id="subjectTitle" class="field-input" type="text" placeholder="e.g. Dog" autocomplete="off" />
+        </div>
+
+        <!-- Image upload -->
+        <div class="field">
+          <label class="field-label">Image</label>
+          <div class="img-upload-box">
+            <div id="imgPreviewWrap" style="display:none;">
+              <img id="imgPreview" src="" alt="Preview" class="img-preview" />
+              <button type="button" id="imgClearBtn" class="img-clear-btn" title="Remove">✕</button>
+            </div>
+            <div id="imgPlaceholder" class="img-placeholder">
+              <i class="ph-bold ph-image" style="font-size:32px;"></i>
+              <span>Click to upload</span>
+            </div>
+            <input type="file" id="imgFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;" />
+            <div id="imgStatus" style="font-size:12px; margin-top:4px; display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Sounds -->
+        <div class="field">
+          <div class="sounds-header">
+            <label class="field-label" style="margin-bottom:0;">Sounds</label>
+            <button type="button" id="addSoundBtn" class="btn btn-sm btn-ghost">+ Add Sound</button>
+          </div>
+          <div id="soundRows"></div>
+          <div id="noSoundsHint" class="no-sounds-hint">No sounds yet — add at least one so the subject plays audio.</div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button id="modalCancelBtn" class="btn btn-ghost">Cancel</button>
+        <button id="modalSaveBtn" class="btn btn-primary">Save Subject</button>
+      </div>
+
     </div>
+  </div>
 
-    <!-- RIGHT: Editor panel -->
-    <div id="editorPanel">
-
-      <!-- No selection message -->
-      <div
-        id="noSelectionMessage"
-        style="background:white; border-radius:12px; padding:48px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); text-align:center; color:#94a3b8;"
-      >
-        <div style="margin-bottom:12px; color:#cbd5e1;"><ArrowLeft /></div>
-        <div style="font-size:15px; font-weight:700;">Select a subject to edit</div>
-        <div style="font-size:13px; margin-top:4px;">or add a new one</div>
-      </div>
-
-      <!-- Subject editor (hidden until subject selected) -->
-      <div id="subjectEditor" style="display:none;">
-        <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:16px;">
-          <input type="hidden" id="selectedSubjectId" />
-
-          <!-- Title row -->
-          <div style="margin-bottom:20px;">
-            <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">Subject Title</label>
-            <div style="display:flex; gap:8px;">
-              <input
-                id="subjectTitle"
-                type="text"
-                style="flex:1; border:1.5px solid #cbd5e1; border-radius:8px; padding:10px 14px; font-size:16px; font-family:inherit; outline:none; font-weight:700; transition:border-color 0.15s;"
-                onfocus="this.style.borderColor='#4BA3FF'"
-                onblur="this.style.borderColor='#cbd5e1'"
-                placeholder="e.g. Dog"
-              />
-              <button
-                onclick="saveSubjectTitle()"
-                id="saveTitleBtn"
-                style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background 0.15s;"
-                onmouseover="this.style.background='#2f8de8'"
-                onmouseout="this.style.background='#4BA3FF'"
-              >
-                Save Title
-              </button>
-            </div>
-            <div id="titleSavedMsg" style="font-size:12px; color:#16a34a; font-weight:700; margin-top:4px; display:none; align-items:center; gap:4px;"><CheckCircle /> Saved</div>
-          </div>
-
-          <!-- Image upload -->
-          <div style="margin-bottom:4px;">
-            <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:8px;">Subject Image</label>
-            <div id="imageUploadMount"></div>
-          </div>
-
-          <!-- Delete subject -->
-          <div style="margin-top:20px; padding-top:16px; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end;">
-            <button
-              onclick="deleteSubject()"
-              style="background:#fee2e2; color:#ef4444; border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.15s;"
-              onmouseover="this.style.background='#fecaca'"
-              onmouseout="this.style.background='#fee2e2'"
-            >
-              Delete Subject
-            </button>
-          </div>
-        </div>
-
-        <!-- Sound Editor Svelte island -->
-        <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-          <SoundEditor client:load voices={VOICES} />
-        </div>
-      </div>
-
-      <!-- New subject form (hidden by default) -->
-      <div
-        id="newSubjectForm"
-        style="display:none; background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);"
-      >
-        <h3 style="font-size:16px; font-weight:800; color:#1e293b; margin:0 0 20px;">New Subject</h3>
-
-        <div style="margin-bottom:16px;">
-          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">Title</label>
-          <input
-            id="newSubjectTitle"
-            type="text"
-            placeholder="e.g. Dog"
-            style="width:100%; border:1.5px solid #cbd5e1; border-radius:8px; padding:11px 14px; font-size:16px; font-family:inherit; outline:none; font-weight:700; transition:border-color 0.15s;"
-            onfocus="this.style.borderColor='#4BA3FF'"
-            onblur="this.style.borderColor='#cbd5e1'"
-            onkeydown="if(event.key==='Enter')createSubject()"
-          />
-        </div>
-
-        <div style="display:flex; gap:12px; align-items:center;">
-          <button
-            onclick="createSubject()"
-            id="createSubjectBtn"
-            style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 22px; font-size:15px; font-weight:800; cursor:pointer; font-family:inherit; transition:background 0.15s;"
-            onmouseover="this.style.background='#2f8de8'"
-            onmouseout="this.style.background='#4BA3FF'"
-          >
-            Create Subject
-          </button>
-          <button
-            onclick="hideNewSubjectForm()"
-            style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 18px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit;"
-          >
-            Cancel
-          </button>
-          <div id="createError" style="font-size:13px; color:#ef4444; font-weight:700; display:none;"></div>
-        </div>
-      </div>
-
-    </div><!-- /editorPanel -->
-  </div><!-- /grid -->
-
-  <!-- ImageUpload island — mounted dynamically via JS into #imageUploadMount -->
-  <div id="imageUploadRoot" style="display:none;">
+  <!-- ImageUpload Svelte island (hidden, cloned into modal) -->
+  <div id="imageUploadTemplate" style="display:none;">
     <ImageUpload client:load prefix="images/subjects" />
   </div>
 
-  <script define:vars={{ topicId: id, voicesJson }}>
-    // @ts-nocheck
-    // ── State ──────────────────────────────────────────────────────────────
-    let currentSubjectId = null;
+  <!-- Per-subject SoundEditors for existing subjects -->
+  {(subjects.results as any[]).map((s) => (
+    <div style="display:none;" data-sound-editor-for={s.id}>
+      <SoundEditor client:load subjectId={s.id} voices={VOICES} />
+    </div>
+  ))}
 
-    // ── Subject selection ─────────────────────────────────────────────────
-    function selectSubject(subjectId) {
-      currentSubjectId = subjectId;
+</AdminLayout>
 
-      // Find the button for this subject
-      const btn = document.querySelector(`[data-id="${subjectId}"]`);
-      const title = btn?.dataset.title ?? '';
+<script define:vars={{ topicId: id, voicesJson, languageLabelsJson }} is:inline>
+// @ts-nocheck
+const VOICES = JSON.parse(voicesJson);
+const LANGUAGE_LABELS = JSON.parse(languageLabelsJson);
 
-      // Update all button styles
-      document.querySelectorAll('#subjectList button').forEach(b => {
-        const isSelected = b.dataset.id === subjectId;
-        b.style.background = isSelected ? '#eff8ff' : '#f8fafc';
-        b.style.borderColor = isSelected ? '#4BA3FF' : '#e2e8f0';
-        b.style.color = isSelected ? '#0369a1' : '#1e293b';
-      });
+// ── Modal state ───────────────────────────────────────────
+let editingSubjectId = null;
+let uploadedImageKey = null; // tracks uploaded image key for new subject
 
-      // Hide other panels, show editor
-      document.getElementById('noSelectionMessage').style.display = 'none';
-      document.getElementById('newSubjectForm').style.display = 'none';
-      document.getElementById('subjectEditor').style.display = 'block';
+// ── DOM refs ──────────────────────────────────────────────
+const overlay    = document.getElementById('modalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const titleInput = document.getElementById('subjectTitle');
+const soundRows  = document.getElementById('soundRows');
+const noSoundsHint = document.getElementById('noSoundsHint');
+const saveBtn    = document.getElementById('modalSaveBtn');
+const addSoundBtn = document.getElementById('addSoundBtn');
 
-      // Fill in fields
-      document.getElementById('selectedSubjectId').value = subjectId;
-      document.getElementById('subjectTitle').value = title;
-      document.getElementById('titleSavedMsg').style.display = 'none';
+// ── Image upload wiring ───────────────────────────────────
+const imgFileInput  = document.getElementById('imgFileInput');
+const imgClearBtn   = document.getElementById('imgClearBtn');
+const imgPreview    = document.getElementById('imgPreview');
+const imgPreviewWrap = document.getElementById('imgPreviewWrap');
+const imgPlaceholder = document.getElementById('imgPlaceholder');
+const imgStatus     = document.getElementById('imgStatus');
+imgPlaceholder.addEventListener('click', () => imgFileInput.click());
 
-      // Dispatch event for SoundEditor Svelte island
-      document.dispatchEvent(new CustomEvent('selectSubject', {
-        detail: { subjectId, voices: JSON.parse(voicesJson) }
-      }));
-    }
+imgClearBtn.addEventListener('click', () => {
+  uploadedImageKey = null;
+  imgPreview.src = '';
+  imgPreviewWrap.style.display = 'none';
+  imgPlaceholder.style.display = 'flex';
+  imgStatus.style.display = 'none';
+  imgFileInput.value = '';
+});
 
-    // ── Save title ─────────────────────────────────────────────────────────
-    async function saveSubjectTitle() {
-      const id = document.getElementById('selectedSubjectId').value;
-      const title = document.getElementById('subjectTitle').value.trim();
-      if (!id || !title) return;
+imgFileInput.addEventListener('change', async () => {
+  const file = imgFileInput.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    imgPreview.src = e.target.result;
+    imgPreviewWrap.style.display = 'block';
+    imgPlaceholder.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+  // Upload to R2
+  imgStatus.textContent = 'Uploading…';
+  imgStatus.style.color = '#94a3b8';
+  imgStatus.style.display = 'block';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('prefix', 'images/subjects');
+  const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
+  if (res.ok) {
+    const data = await res.json();
+    uploadedImageKey = data.key;
+    imgStatus.textContent = '✓ Uploaded';
+    imgStatus.style.color = '#16a34a';
+  } else {
+    imgStatus.textContent = '✗ Upload failed';
+    imgStatus.style.color = '#ef4444';
+    uploadedImageKey = null;
+  }
+});
 
-      const btn = document.getElementById('saveTitleBtn');
-      btn.disabled = true;
-      btn.textContent = 'Saving…';
+function resetImageUpload() {
+  uploadedImageKey = null;
+  imgPreview.src = '';
+  imgPreviewWrap.style.display = 'none';
+  imgPlaceholder.style.display = 'flex';
+  imgStatus.style.display = 'none';
+  imgFileInput.value = '';
+}
 
-      const res = await fetch('/api/admin/subjects', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, title }),
-      });
+// ── Open / Close modal ────────────────────────────────────
+function openModal(mode = 'add', subject = null) {
+  editingSubjectId = subject?.id ?? null;
+  modalTitle.textContent = mode === 'edit' ? 'Edit Subject' : 'Add Subject';
+  titleInput.value = subject?.title ?? '';
+  soundRows.innerHTML = '';
+  resetImageUpload();
 
-      btn.disabled = false;
-      btn.textContent = 'Save Title';
+  if (mode === 'edit' && subject?.sounds?.length) {
+    subject.sounds.forEach(s => addSoundRow(s));
+  } else {
+    addSoundRow();
+  }
 
-      if (res.ok) {
-        // Update button label in sidebar
-        const listBtn = document.querySelector(`[data-id="${id}"]`);
-        if (listBtn) {
-          listBtn.dataset.title = title;
-          listBtn.querySelector('span:last-child').textContent = title;
-        }
-        const msg = document.getElementById('titleSavedMsg');
-        msg.style.display = 'block';
-        setTimeout(() => { msg.style.display = 'none'; }, 2500);
-      } else {
-        alert('Failed to save title');
-      }
-    }
+  updateNoSoundsHint();
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => titleInput.focus(), 50);
+}
 
-    // ── Delete subject ─────────────────────────────────────────────────────
-    async function deleteSubject() {
-      const id = document.getElementById('selectedSubjectId').value;
-      const titleEl = document.getElementById('subjectTitle');
-      const title = titleEl?.value || 'this subject';
-      if (!confirm(`Delete "${title}" and all its sounds?`)) return;
+function closeModal() {
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  editingSubjectId = null;
+}
 
-      const res = await fetch('/api/admin/subjects', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+// ── Sound rows ────────────────────────────────────────────
+let soundCounter = 0;
 
-      if (res.ok) {
-        // Remove from sidebar
-        const btn = document.querySelector(`[data-id="${id}"]`);
-        if (btn) btn.remove();
-        // Renumber
-        document.querySelectorAll('#subjectList button').forEach((b, i) => {
-          b.querySelector('span:first-child').textContent = `${i + 1}.`;
-        });
-        // Show no-selection state
-        document.getElementById('subjectEditor').style.display = 'none';
-        document.getElementById('noSelectionMessage').style.display = 'block';
-        currentSubjectId = null;
-      } else {
-        alert('Failed to delete subject');
-      }
-    }
+function addSoundRow(existing = null) {
+  const idx = soundCounter++;
+  const row = document.createElement('div');
+  row.className = 'sound-row';
+  row.dataset.idx = idx;
 
-    // ── New subject form ───────────────────────────────────────────────────
-    function showNewSubjectForm() {
-      document.getElementById('subjectEditor').style.display = 'none';
-      document.getElementById('noSelectionMessage').style.display = 'none';
-      document.getElementById('newSubjectForm').style.display = 'block';
-      document.getElementById('createError').style.display = 'none';
-      const input = document.getElementById('newSubjectTitle');
-      input.value = '';
-      input.focus();
+  const defaultLang = existing?.language ?? 'en-US';
+  const defaultVoice = existing?.voice ?? VOICES.find(v => v.language === defaultLang)?.id ?? VOICES[0]?.id ?? '';
+  const isFile = existing?.type === 'file';
 
-      // Deselect sidebar
-      document.querySelectorAll('#subjectList button').forEach(b => {
-        b.style.background = '#f8fafc';
-        b.style.borderColor = '#e2e8f0';
-        b.style.color = '#1e293b';
-      });
-      currentSubjectId = null;
-    }
+  // Build language options
+  const langs = [...new Set(VOICES.map(v => v.language))];
+  const langOptions = langs.map(l =>
+    `<option value="${l}" ${l === defaultLang ? 'selected' : ''}>${LANGUAGE_LABELS[l] ?? l}</option>`
+  ).join('');
 
-    function hideNewSubjectForm() {
-      document.getElementById('newSubjectForm').style.display = 'none';
-      document.getElementById('noSelectionMessage').style.display = 'block';
-    }
+  // Build voice options for default lang
+  const voiceOptions = VOICES
+    .filter(v => v.language === defaultLang)
+    .map(v => `<option value="${v.id}" ${v.id === defaultVoice ? 'selected' : ''}>${v.label}</option>`)
+    .join('');
 
-    async function createSubject() {
-      const titleInput = document.getElementById('newSubjectTitle');
-      const title = titleInput.value.trim();
-      if (!title) {
-        titleInput.focus();
-        return;
-      }
+  row.innerHTML = `
+    <div class="sound-row-header">
+      <span class="sound-num">#${soundRows.children.length + 1}</span>
+      <select class="sound-type-select field-select">
+        <option value="text" ${!isFile ? 'selected' : ''}>Text (TTS)</option>
+        <option value="file" ${isFile ? 'selected' : ''}>Audio file</option>
+      </select>
+      <div class="delay-group">
+        <input type="number" class="sound-delay field-input-sm" value="${existing?.delay_before_ms ?? 0}" min="0" step="100" title="Delay before this sound (ms)" />
+        <span class="delay-label">ms delay</span>
+      </div>
+      <button type="button" class="sound-remove-btn" title="Remove sound">✕</button>
+    </div>
+    <div class="sound-tts-fields" style="${isFile ? 'display:none' : ''}">
+      <div>
+        <div class="sound-field-label">Text to speak</div>
+        <input type="text" class="sound-text field-input" placeholder='e.g. "Dog" or "Woof!"' value="${existing?.text_content ?? ''}" />
+      </div>
+      <div class="sound-voice-row">
+        <label class="sound-voice-label">
+          <span class="sound-field-label">Language</span>
+          <select class="sound-lang field-select">${langOptions}</select>
+        </label>
+        <label class="sound-voice-label">
+          <span class="sound-field-label">Voice</span>
+          <select class="sound-voice field-select">${voiceOptions}</select>
+        </label>
+      </div>
+    </div>
+    <div class="sound-file-fields" style="${isFile ? '' : 'display:none'}">
+      ${existing?.file_key ? `<div class="file-attached"><i class="ph-bold ph-music-note"></i> ${existing.file_key.split('/').pop()}</div>` : ''}
+      <div class="sound-field-label">MP3 file</div>
+      <input type="file" class="sound-file-input" accept="audio/mpeg,audio/mp3,.mp3" style="font-size:13px; font-family:inherit;" />
+    </div>
+  `;
 
-      const btn = document.getElementById('createSubjectBtn');
-      const errEl = document.getElementById('createError');
-      btn.disabled = true;
-      btn.textContent = 'Creating…';
-      errEl.style.display = 'none';
+  // Type toggle
+  row.querySelector('.sound-type-select').addEventListener('change', (e) => {
+    const isTts = e.target.value === 'text';
+    row.querySelector('.sound-tts-fields').style.display = isTts ? '' : 'none';
+    row.querySelector('.sound-file-fields').style.display = isTts ? 'none' : '';
+  });
 
-      // Compute next sort_order
-      const existing = document.querySelectorAll('#subjectList button').length;
+  // Language → update voices
+  row.querySelector('.sound-lang').addEventListener('change', (e) => {
+    const lang = e.target.value;
+    const voiceSel = row.querySelector('.sound-voice');
+    voiceSel.innerHTML = VOICES
+      .filter(v => v.language === lang)
+      .map(v => `<option value="${v.id}">${v.label}</option>`)
+      .join('');
+  });
 
+  // Remove button
+  row.querySelector('.sound-remove-btn').addEventListener('click', () => {
+    row.remove();
+    renumberSounds();
+    updateNoSoundsHint();
+  });
+
+  soundRows.appendChild(row);
+  updateNoSoundsHint();
+  renumberSounds();
+}
+
+function renumberSounds() {
+  soundRows.querySelectorAll('.sound-num').forEach((el, i) => {
+    el.textContent = `#${i + 1}`;
+  });
+}
+
+function updateNoSoundsHint() {
+  noSoundsHint.style.display = soundRows.children.length === 0 ? 'block' : 'none';
+}
+
+// ── Collect sound data from rows ──────────────────────────
+function collectSounds() {
+  return Array.from(soundRows.querySelectorAll('.sound-row')).map((row, i) => ({
+    type: row.querySelector('.sound-type-select').value,
+    delay_before_ms: parseInt(row.querySelector('.sound-delay').value) || 0,
+    text_content: row.querySelector('.sound-text')?.value?.trim() ?? null,
+    language: row.querySelector('.sound-lang')?.value ?? 'en-US',
+    voice: row.querySelector('.sound-voice')?.value ?? VOICES[0]?.id,
+    _fileInput: row.querySelector('.sound-file-input'),
+    sort_order: i,
+  }));
+}
+
+// ── Upload audio file for a sound ────────────────────────
+async function uploadAudioFile(soundId, fileInput) {
+  const file = fileInput?.files?.[0];
+  if (!file) return null;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('prefix', `audio/uploads/${soundId}`);
+  const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
+  if (!res.ok) return null;
+  const { key } = await res.json();
+  return key;
+}
+
+// ── Save subject (add or edit) ────────────────────────────
+saveBtn.addEventListener('click', async () => {
+  const title = titleInput.value.trim();
+  if (!title) { titleInput.focus(); titleInput.style.borderColor = '#ef4444'; return; }
+  titleInput.style.borderColor = '';
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  try {
+    let subjectId = editingSubjectId;
+
+    if (!subjectId) {
+      // Create new subject
+      const existing = document.querySelectorAll('#subjectList .subject-card').length;
       const res = await fetch('/api/admin/subjects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic_id: topicId, title, sort_order: existing }),
+        body: JSON.stringify({ topic_id: topicId, title, sort_order: existing, image_key: uploadedImageKey }),
       });
+      if (!res.ok) throw new Error('Failed to create subject');
+      const sub = await res.json();
+      subjectId = sub.id;
+    } else {
+      // Update existing title
+      await fetch('/api/admin/subjects', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: subjectId, title }),
+      });
+    }
 
-      if (res.ok) {
-        const subject = await res.json();
-
-        // Add to sidebar
-        const list = document.getElementById('subjectList');
-        const noSubMsg = list.querySelector('div[style*="No subjects"]');
-        if (noSubMsg) noSubMsg.remove();
-
-        const newBtn = document.createElement('button');
-        newBtn.dataset.id = subject.id;
-        newBtn.dataset.title = subject.title;
-        newBtn.dataset.sort = subject.sort_order;
-        newBtn.dataset.imagekey = '';
-        newBtn.setAttribute('onclick', `selectSubject('${subject.id}')`);
-        newBtn.style.cssText = 'text-align:left; background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; color:#1e293b; transition:all 0.15s; display:flex; align-items:center; gap:8px;';
-        newBtn.innerHTML = `<span style="color:#94a3b8; font-size:12px; min-width:20px;">${existing + 1}.</span><span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${subject.title}</span>`;
-        list.appendChild(newBtn);
-
-        btn.disabled = false;
-        btn.textContent = 'Create Subject';
-
-        // Auto-select newly created subject
-        document.getElementById('newSubjectForm').style.display = 'none';
-        selectSubject(subject.id);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        errEl.textContent = err.error ?? 'Failed to create subject.';
-        errEl.style.display = 'block';
-        btn.disabled = false;
-        btn.textContent = 'Create Subject';
+    // Save sounds
+    const soundData = collectSounds();
+    for (const s of soundData) {
+      const payload = {
+        subject_id: subjectId,
+        type: s.type,
+        sort_order: s.sort_order,
+        delay_before_ms: s.delay_before_ms,
+        text_content: s.type === 'text' ? s.text_content : null,
+        language: s.language,
+        voice: s.voice,
+      };
+      const soundRes = await fetch('/api/admin/sounds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (soundRes.ok && s.type === 'file' && s._fileInput?.files?.[0]) {
+        const sound = await soundRes.json();
+        await uploadAudioFile(sound.id, s._fileInput);
       }
     }
 
-    // ── Title: Enter key shortcut ──────────────────────────────────────────
-    document.getElementById('subjectTitle').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') saveSubjectTitle();
+    // Reload page to show updated list
+    window.location.reload();
+
+  } catch (err) {
+    alert(err.message ?? 'Something went wrong');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Subject';
+  }
+});
+
+// ── Add sound row button ──────────────────────────────────
+addSoundBtn.addEventListener('click', () => addSoundRow());
+
+// ── Close modal ───────────────────────────────────────────
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
+});
+
+// ── Open modal for new subject ────────────────────────────
+document.getElementById('addSubjectBtn').addEventListener('click', () => openModal('add'));
+
+// ── Delete subject ────────────────────────────────────────
+document.querySelectorAll('.btn-danger').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const subjectId = btn.dataset.id;
+    const title = btn.dataset.title;
+    if (!confirm(`Delete "${title}" and all its sounds?`)) return;
+    const res = await fetch('/api/admin/subjects', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: subjectId }),
     });
-  </script>
-</AdminLayout>
+    if (res.ok) {
+      btn.closest('.subject-card').remove();
+      renumberCards();
+      if (!document.querySelector('.subject-card')) {
+        const el = document.createElement('div');
+        el.id = 'emptyState';
+        el.className = 'empty-state';
+        el.innerHTML = 'No subjects yet — click <strong>+ Add Subject</strong> to get started.';
+        document.getElementById('subjectList').prepend(el);
+      }
+    } else { alert('Failed to delete'); }
+  });
+});
+
+function renumberCards() {
+  document.querySelectorAll('#subjectList .subject-card').forEach((card, i) => {
+    const num = card.querySelector('.card-num');
+    if (num) num.textContent = i + 1;
+  });
+}
+</script>
+
+<style is:global>
+  /* ── Page header ─────────────────────────────────────── */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #475569;
+  }
+  .breadcrumb a { color: #64748b; text-decoration: none; }
+  .breadcrumb a:hover { color: #1e293b; }
+  .breadcrumb .sep { color: #cbd5e1; }
+  .header-actions { display: flex; gap: 10px; }
+
+  /* ── Buttons ─────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    border: none;
+    transition: background 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary { background: #4BA3FF; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #2f8de8; }
+  .btn-ghost {
+    background: white;
+    color: #475569;
+    border: 1.5px solid #e2e8f0;
+  }
+  .btn-ghost:hover:not(:disabled) { background: #f1f5f9; }
+  .btn-danger { background: #fee2e2; color: #ef4444; }
+  .btn-danger:hover:not(:disabled) { background: #fecaca; }
+  .btn-sm { padding: 5px 12px; font-size: 13px; }
+
+  /* ── Subject card (list row) ─────────────────────────── */
+  .subject-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .card-num {
+    font-size: 13px;
+    font-weight: 800;
+    color: #94a3b8;
+    min-width: 22px;
+    flex-shrink: 0;
+  }
+  .card-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1.5px solid #e2e8f0;
+  }
+  .card-thumb-empty {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #f1f5f9;
+    border: 1.5px dashed #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #94a3b8;
+    flex-shrink: 0;
+  }
+  .card-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-sounds-count {
+    font-size: 12px;
+    color: #94a3b8;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: #94a3b8;
+    font-size: 15px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  /* ── Modal overlay ───────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 500;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: white;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+  }
+
+  /* Modal header */
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1.5px solid #f1f5f9;
+  }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .modal-close:hover { background: #f1f5f9; color: #475569; }
+
+  /* Modal body */
+  .modal-body {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    max-height: calc(85svh - 140px);
+  }
+
+  /* Modal footer */
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1.5px solid #f1f5f9;
+  }
+
+  /* ── Form fields ─────────────────────────────────────── */
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .field-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 0;
+  }
+  .required { color: #ef4444; }
+  .field-input {
+    width: 100%;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+  .field-input:focus { border-color: #4BA3FF; }
+  .field-select {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: white;
+    outline: none;
+    cursor: pointer;
+  }
+  .field-input-sm {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    width: 80px;
+  }
+
+  /* ── Sounds section ──────────────────────────────────── */
+  .sounds-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .no-sounds-hint {
+    font-size: 13px;
+    color: #94a3b8;
+    font-style: italic;
+    padding: 8px 0;
+  }
+
+  /* Sound row */
+  .sound-row {
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    background: #f8fafc;
+    overflow: hidden;
+  }
+  .sound-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background: #f1f5f9;
+    border-bottom: 1.5px solid #e2e8f0;
+  }
+  .sound-num {
+    font-size: 12px;
+    font-weight: 800;
+    color: #4BA3FF;
+    background: #e0f2fe;
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .sound-remove-btn {
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: inherit;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .sound-remove-btn:hover { background: #fee2e2; color: #ef4444; }
+  .delay-label { font-size: 12px; color: #94a3b8; font-weight: 700; flex-shrink: 0; }
+  .delay-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: white;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 7px;
+    padding: 4px 10px;
+  }
+  .delay-group .field-input-sm {
+    border: none;
+    padding: 2px 0;
+    background: transparent;
+    width: 60px;
+  }
+  .sound-field-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .sound-voice-label {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 130px;
+  }
+
+  .sound-tts-fields,
+  .sound-file-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+  .sound-text { width: 100%; box-sizing: border-box; }
+  .sound-voice-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sound-voice-row select { flex: 1; min-width: 130px; }
+  .sound-voice-row label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 130px;
+  }
+  .file-attached {
+    font-size: 13px;
+    color: #16a34a;
+    font-weight: 700;
+    padding: 2px 0;
+  }
+
+  /* ── Mobile ≤ 768px ──────────────────────────────────── */
+  @media (max-width: 768px) {
+    .page-header { flex-direction: column; align-items: stretch; }
+    .header-actions { justify-content: flex-end; }
+    .card-header { gap: 10px; padding: 12px; }
+    .card-actions { flex-direction: column; gap: 6px; }
+    .btn { min-height: 44px; }
+    .sound-row-header { gap: 6px; }
+
+    /* Modal fills the full screen on mobile */
+    .modal-overlay {
+      padding: 0;
+      align-items: flex-end;
+    }
+    .modal {
+      border-radius: 20px 20px 0 0;
+      max-width: 100%;
+      width: 100%;
+      max-height: 92svh;
+      margin: 0;
+    }
+    .modal-body {
+      max-height: calc(92svh - 130px);
+    }
+    .modal-footer {
+      flex-direction: column-reverse;
+      padding: 12px 16px;
+    }
+    .modal-footer .btn { width: 100%; min-height: 48px; font-size: 16px; }
+    .modal-header { padding: 16px 16px 12px; }
+    .modal-body { padding: 16px; gap: 16px; }
+  }
+
+  /* ── Image upload box ───────────────────────────────── */
+  .img-upload-box {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+  }
+  .img-placeholder {
+    width: 100%;
+    height: 140px;
+    background: #f1f5f9;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .img-placeholder:hover { border-color: #4BA3FF; background: #eff8ff; }
+  #imgPreviewWrap {
+    position: relative;
+    width: 100%;
+    height: 200px;
+  }
+  .img-preview {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    display: block;
+  }
+  .img-clear-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+</style>

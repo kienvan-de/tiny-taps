@@ -22,8 +22,8 @@ const topicTagRows = await env.DB.prepare('SELECT tag_id FROM topic_tags WHERE t
 const topicTagIds = new Set((topicTagRows.results as any[]).map((r) => r.tag_id));
 ---
 <AdminLayout title={`Edit: ${topic.title}`}>
-  <div style="max-width:640px;">
-    <div style="background:white; border-radius:12px; padding:32px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+  <div class="form-wrapper">
+    <div class="form-card">
       <form id="editTopicForm">
         <input type="hidden" name="id" value={topic.id} />
 
@@ -91,7 +91,7 @@ const topicTagIds = new Set((topicTagRows.results as any[]).map((r) => r.tag_id)
           </div>
         )}
 
-        <div style="display:flex; gap:12px; align-items:center; padding-top:8px; border-top:1px solid #f1f5f9;">
+        <div class="form-actions">
           <button
             type="submit"
             id="submitBtn"
@@ -130,6 +130,62 @@ const topicTagIds = new Set((topicTagRows.results as any[]).map((r) => r.tag_id)
       <div style="font-size:13px; color:#475569;">{topic.updated_at}</div>
     </div>
   </div>
+
+  <style>
+    .form-wrapper {
+      max-width: 640px;
+    }
+
+    .form-card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    @media (max-width: 768px) {
+      .form-wrapper {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .form-card {
+        padding: 20px 16px;
+      }
+
+      .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+
+      .form-actions button,
+      .form-actions a {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      #successMsg,
+      #errorMsg {
+        margin-left: 0;
+        justify-content: center;
+        text-align: center;
+      }
+    }
+  </style>
 
   <script>
     // @ts-nocheck

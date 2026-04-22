@@ -5,12 +5,14 @@
     prefix?: string;
     currentUrl?: string | null;
     onuploaded?: (data: { key: string; url: string }) => void;
+    subjectId?: string;
   }
 
   let {
     prefix = 'images',
     currentUrl = null,
     onuploaded,
+    subjectId = '',
   }: Props = $props();
 
   let preview = $state(currentUrl ?? '');
@@ -47,6 +49,11 @@
         const data = await res.json();
         preview = data.url;
         onuploaded?.(data);
+        if (subjectId) {
+          document.dispatchEvent(new CustomEvent('imageUploaded', {
+            detail: { subjectId, key: data.key, url: data.url }
+          }));
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         error = err.error ?? 'Upload failed. Please try again.';
@@ -104,20 +111,40 @@
     {/if}
   </div>
 
-  <!-- File input -->
+  <!-- File input (hidden — triggered by button/preview click) -->
   <input
     bind:this={inputEl}
     type="file"
     accept="image/png,image/jpeg,image/webp,image/gif"
     onchange={handleFile}
     disabled={uploading}
-    style="font-size:13px; font-family:inherit; max-width:200px;"
+    style="display:none;"
   />
+
+  <!-- Upload button (shown when no preview) -->
+  {#if !preview && !uploading}
+    <button
+      type="button"
+      onclick={() => inputEl?.click()}
+      style="background:#f1f5f9; color:#475569; border:1.5px solid #e2e8f0; border-radius:8px; padding:7px 16px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;"
+    >
+      Choose Image
+    </button>
+  {/if}
 
   <!-- Status messages -->
   {#if error}
     <div style="font-size:12px; color:#ef4444; font-weight:700; max-width:200px;">{error}</div>
   {:else if preview && !uploading}
-    <div style="font-size:12px; color:#6BCB77; font-weight:700; display:flex; align-items:center; gap:4px;"><i class="ph-bold ph-check-circle" style="font-size:14px;" aria-hidden="true"></i> Image ready</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div style="font-size:12px; color:#6BCB77; font-weight:700; display:flex; align-items:center; gap:4px;"><i class="ph-bold ph-check-circle" style="font-size:14px;" aria-hidden="true"></i> Image ready</div>
+      <button
+        type="button"
+        onclick={() => inputEl?.click()}
+        style="background:#f1f5f9; color:#475569; border:1.5px solid #e2e8f0; border-radius:8px; padding:4px 12px; font-size:12px; font-weight:700; font-family:inherit; cursor:pointer;"
+      >
+        Change
+      </button>
+    </div>
   {/if}
 </div>

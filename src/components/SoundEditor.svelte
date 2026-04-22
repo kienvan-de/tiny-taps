@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { LANGUAGE_LABELS } from '../lib/voices';
   
   
 
@@ -21,15 +22,19 @@
     file_key: string | null;
   }
 
-  let { voices = [] }: { voices: Voice[] } = $props();
+  let { voices = [], subjectId: initialSubjectId = '' }: { voices: Voice[]; subjectId?: string } = $props();
 
-  let subjectId = $state('');
+  let subjectId = $state(initialSubjectId);
   let sounds = $state<Sound[]>([]);
   let loading = $state(false);
   let saving = $state(false);
   let previewingId = $state<string | null>(null);
 
   onMount(() => {
+    // Load sounds immediately if a subjectId was passed as prop
+    if (subjectId) loadSounds();
+
+    // Also still support the legacy event-based usage
     document.addEventListener('selectSubject', async (e: Event) => {
       const detail = (e as CustomEvent).detail;
       subjectId = detail.subjectId;
@@ -353,7 +358,7 @@
                     style="border:1.5px solid #cbd5e1; border-radius:7px; padding:6px 10px; font-size:13px; font-family:inherit; background:white; outline:none;"
                   >
                     {#each languagesFromVoices() as lang}
-                      <option value={lang}>{lang}</option>
+                      <option value={lang}>{LANGUAGE_LABELS[lang] ?? lang}</option>
                     {/each}
                   </select>
                 </div>

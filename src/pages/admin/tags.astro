@@ -3,11 +3,6 @@ export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ICON_GROUPS, DEFAULT_ICON } from '../../lib/phosphor-icons';
 
-// Convert PascalCase icon name → Phosphor CSS class e.g. "PawPrint" → "ph-paw-print"
-function toPhClass(name: string): string {
-  return 'ph-' + name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
-}
-
 const env = Astro.locals.env;
 const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
 ---
@@ -18,8 +13,8 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
     <h2 style="font-size:16px; font-weight:800; color:#1e293b; margin:0 0 16px;">Add Tag</h2>
     <form id="createTagForm">
 
-      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
-        <div>
+      <div class="tag-form-row">
+        <div class="tag-form-field">
           <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Name</label>
           <input
             name="name"
@@ -28,7 +23,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
             style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:160px;"
           />
         </div>
-        <div>
+        <div class="tag-form-field">
           <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Category</label>
           <select
             name="category"
@@ -38,7 +33,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
             <option value="category">Category</option>
           </select>
         </div>
-        <div>
+        <div class="tag-form-field">
           <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Sort Order</label>
           <input
             name="sort_order"
@@ -94,6 +89,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
 
       <button
         type="submit"
+        class="tag-submit-btn"
         style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer;"
       >
         Add Tag
@@ -108,7 +104,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
         No tags yet. Add your first tag above.
       </div>
     ) : (
-      <table style="width:100%; border-collapse:collapse;">
+      <table class="tags-table" style="width:100%; border-collapse:collapse;">
         <thead>
           <tr style="border-bottom:2px solid #f1f5f9;">
             <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b; width:52px;">Icon</th>
@@ -148,6 +144,37 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
           })}
         </tbody>
       </table>
+
+      <!-- ── Mobile card list (hidden on desktop) ─────────────────────── -->
+      <div class="tag-cards">
+        {(tags.results as any[]).map((tag) => {
+          const iconName = tag.icon ?? DEFAULT_ICON;
+          return (
+            <div class="tag-card">
+              <div class="tag-card-top">
+                <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                  <div style="width:36px; height:36px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#475569; font-size:12px; font-weight:800; flex-shrink:0;">
+                    {iconName.slice(0,2)}
+                  </div>
+                  <span style="font-size:15px; font-weight:800; color:#1e293b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{tag.name}</span>
+                </div>
+                <span style={`display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; background:${tag.category === 'age' ? '#e0f2fe' : '#dcfce7'}; color:${tag.category === 'age' ? '#0369a1' : '#166534'}; flex-shrink:0;`}>
+                  {tag.category}
+                </span>
+              </div>
+              <div style="font-size:12px; color:#94a3b8; font-weight:700; margin-bottom:10px;">
+                Sort order: {tag.sort_order}
+              </div>
+              <button
+                onclick={`deleteTag('${tag.id}')`}
+                class="tag-card-delete"
+              >
+                Delete
+              </button>
+            </div>
+          );
+        })}
+      </div>
     )}
   </div>
 </AdminLayout>
@@ -228,10 +255,96 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
     width: 18px;
     height: 18px;
   }
+
+  /* ── Add Tag form: responsive field row ─────────────────────────────── */
+  .tag-form-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-bottom: 16px;
+  }
+
+  /* ── Submit button ───────────────────────────────────────────────────── */
+  .tag-submit-btn {
+    /* inherits inline styles; extended by mobile */
+  }
+
+  /* ── Mobile card list (hidden on desktop) ───────────────────────────── */
+  .tag-cards {
+    display: none;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     MOBILE ≤ 768px
+     ═══════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    /* Form: stack fields vertically */
+    .tag-form-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .tag-form-field {
+      width: 100%;
+    }
+    .tag-form-field input,
+    .tag-form-field select {
+      width: 100% !important;
+      box-sizing: border-box;
+    }
+
+    /* Submit button: full-width, touch-friendly */
+    .tag-submit-btn {
+      width: 100% !important;
+      min-height: 44px;
+      padding-top: 12px !important;
+      padding-bottom: 12px !important;
+    }
+
+    /* Hide desktop table, show cards */
+    .tags-table {
+      display: none;
+    }
+    .tag-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Individual tag card */
+    .tag-card {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .tag-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .tag-card-delete {
+      width: 100%;
+      min-height: 44px;
+      background: #fee2e2;
+      color: #ef4444;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .tag-card-delete:active {
+      background: #fecaca;
+    }
+  }
 </style>
 
 <script>
-  const iconInput = document.getElementById('iconInput') as HTMLInputElement;
+// @ts-nocheck  const iconInput = document.getElementById('iconInput') as HTMLInputElement;
   const iconPreviewLabel = document.getElementById('iconPreviewLabel') as HTMLElement;
   const iconPreview = document.getElementById('iconPreview') as HTMLElement;
 
@@ -314,4 +427,6 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
       alert('Failed to delete tag');
     }
   }
+
+  window.deleteTag = deleteTag;
 </script>

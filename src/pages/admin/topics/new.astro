@@ -6,8 +6,50 @@ const env = Astro.locals.env;
 const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
 ---
 <AdminLayout title="New Topic">
-  <div style="max-width:640px;">
-    <div style="background:white; border-radius:12px; padding:32px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+  <style>
+    .form-wrapper {
+      max-width: 640px;
+      width: 100%;
+    }
+
+    .form-card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    @media (max-width: 768px) {
+      .form-card {
+        padding: 20px 16px;
+      }
+
+      .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .form-actions #submitBtn {
+        width: 100%;
+      }
+
+      .form-actions .cancel-link {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+
+  <div class="form-wrapper">
+    <div class="form-card">
       <form id="newTopicForm">
         <div style="margin-bottom:20px;">
           <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:6px;">
@@ -69,11 +111,11 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
           </div>
         )}
 
-        <div style="display:flex; gap:12px; align-items:center; padding-top:8px; border-top:1px solid #f1f5f9;">
+        <div class="form-actions">
           <button
             type="submit"
             id="submitBtn"
-            style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:11px 24px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; transition:background 0.15s;"
+            style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:11px 24px; font-size:15px; font-weight:800; font-family:inherit; cursor:pointer; transition:background 0.15s; min-height:44px;"
             onmouseover="this.style.background='#2f8de8'"
             onmouseout="this.style.background='#4BA3FF'"
           >
@@ -81,6 +123,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
           </button>
           <a
             href="/admin/topics"
+            class="cancel-link"
             style="padding:11px 20px; font-size:15px; font-weight:700; color:#64748b; text-decoration:none;"
           >
             Cancel
