@@ -1,6 +1,6 @@
 <script lang="ts">
-  import UploadSimpleIcon from 'phosphor-svelte/lib/UploadSimpleIcon.svelte';
-  import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircleIcon.svelte';
+  
+  
   interface Props {
     prefix?: string;
     currentUrl?: string | null;
@@ -92,7 +92,7 @@
         tabindex="0"
         onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputEl?.click(); }}
       >
-        <UploadSimpleIcon weight="bold" size={28} color="#94a3b8" />
+        <i class="ph-bold ph-upload-simple" style="font-size:28px; color:#94a3b8;" aria-hidden="true"></i>
         <span style="font-size:11px; font-weight:700; text-align:center; padding:0 8px;">Click to upload</span>
       </div>
     {/if}
@@ -118,6 +118,6 @@
   {#if error}
     <div style="font-size:12px; color:#ef4444; font-weight:700; max-width:200px;">{error}</div>
   {:else if preview && !uploading}
-    <div style="font-size:12px; color:#6BCB77; font-weight:700; display:flex; align-items:center; gap:4px;"><CheckCircleIcon weight="bold" size={14} /> Image ready</div>
+    <div style="font-size:12px; color:#6BCB77; font-weight:700; display:flex; align-items:center; gap:4px;"><i class="ph-bold ph-check-circle" style="font-size:14px;" aria-hidden="true"></i> Image ready</div>
   {/if}
 </div>

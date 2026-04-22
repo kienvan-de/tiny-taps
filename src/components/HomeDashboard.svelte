@@ -2,7 +2,7 @@
   import TagFilter from './TagFilter.svelte';
   import TopicCard from './TopicCard.svelte';
   import Pagination from './Pagination.svelte';
-  import SparkleIcon from 'phosphor-svelte/lib/SparkleIcon.svelte';
+
 
   // ── Types ──────────────────────────────────────────────────────────────
   interface Tag {
@@ -113,13 +113,13 @@
     </div>
   {:else if error}
     <div class="empty-state">
-      <div class="empty-icon"><SparkleIcon weight="bold" size={64} color="#FFD93D" /></div>
+      <div class="empty-icon"><i class="ph-bold ph-sparkle" style="font-size:64px; color:#FFD93D;" aria-hidden="true"></i></div>
       <div class="empty-text">Oops!</div>
       <div class="empty-sub">{error}</div>
     </div>
   {:else if topics.length === 0}
     <div class="empty-state">
-      <div class="empty-icon"><SparkleIcon weight="bold" size={64} color="#FFD93D" /></div>
+      <div class="empty-icon"><i class="ph-bold ph-sparkle" style="font-size:64px; color:#FFD93D;" aria-hidden="true"></i></div>
       <div class="empty-text">No topics yet!</div>
       <div class="empty-sub">Check back soon for new content.</div>
     </div>

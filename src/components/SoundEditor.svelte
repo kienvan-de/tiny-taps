@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import MusicNoteIcon from 'phosphor-svelte/lib/MusicNoteIcon.svelte';
-  import CheckCircleIcon from 'phosphor-svelte/lib/CheckCircleIcon.svelte';
+  
+  
 
   interface Voice {
     id: string;
@@ -268,7 +268,7 @@
               {:else}
                 <span style="font-size:13px; color:#475569; font-weight:700;">
                   {#if sound.file_key}
-                    <span style="display:inline-flex;align-items:center;gap:4px;"><MusicNoteIcon weight="bold" size={14} /> Audio file</span>
+                    <span style="display:inline-flex;align-items:center;gap:4px;"><i class="ph-bold ph-music-note" style="font-size:14px;" aria-hidden="true"></i> Audio file</span>
                   {:else}
                     (no file)
                   {/if}
@@ -386,7 +386,7 @@
               <label style="display:block; font-size:12px; font-weight:700; color:#64748b; margin-bottom:4px;">Audio File (MP3)</label>
               {#if sound.file_key}
                 <div style="font-size:12px; color:#6BCB77; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
-                    <CheckCircleIcon weight="bold" size={14} /> {sound.file_key.split('/').pop()}
+                    <i class="ph-bold ph-check-circle" style="font-size:14px;" aria-hidden="true"></i> {sound.file_key.split('/').pop()}
                   </div>
               {/if}
               <input
@@ -414,7 +414,7 @@
               ? (sound.text_content ? `"${sound.text_content}"` : '(empty)')
               : ''}
             {#if sound.type === 'file'}
-              <MusicNoteIcon weight="bold" size={13} style="vertical-align:middle;" />
+              <i class="ph-bold ph-music-note" style="font-size:13px;vertical-align:middle;" aria-hidden="true"></i>
             {/if}
             {#if sound.delay_before_ms > 0}
               <span style="color:#92400e;">(+{sound.delay_before_ms}ms)</span>

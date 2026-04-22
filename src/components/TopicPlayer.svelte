@@ -3,7 +3,7 @@
   import SubjectStack from './SubjectStack.svelte';
   import AudioEngine from './AudioEngine.svelte';
   import type { ResolvedSound, AudioEngineAPI } from './AudioEngine.svelte';
-  import MusicNotesIcon from 'phosphor-svelte/lib/MusicNotesIcon.svelte';
+  
 
   interface Props {
     slug: string;
@@ -70,7 +70,7 @@
   <!-- Loading state — match the loading overlay style from the static page -->
   <div class="loading-state">
     <div class="loading-spinner">
-      <MusicNotesIcon weight="bold" size={48} color="#FF4B4B" />
+      <i class="ph-bold ph-music-notes" style="font-size:48px; color:#FF4B4B;" aria-hidden="true"></i>
     </div>
   </div>
 

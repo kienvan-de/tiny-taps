@@ -1,7 +1,4 @@
 <script lang="ts">
-  import TagIcon from 'phosphor-svelte/lib/TagIcon.svelte';
-  import SparkleIcon from 'phosphor-svelte/lib/SparkleIcon.svelte';
-
   interface Tag {
     id: string;
     name: string;
@@ -21,28 +18,17 @@
     onSelect,
   }: Props = $props();
 
-  // Lazy-load the icon map only on the client — it imports 90+ Svelte components
-  // and crashes Astro SSR if imported at the module level.
-  let iconMap: Record<string, any> = $state({});
-
-  $effect(() => {
-    import('../lib/phosphor-svelte-map').then(m => {
-      iconMap = m.SVELTE_ICON_MAP;
-    });
-  });
-
-  function getIcon(name: string | null | undefined): any {
-    if (!name) return TagIcon;
-    return iconMap[name] ?? TagIcon;
+  // Convert PascalCase icon name from DB to Phosphor CSS class
+  // e.g. "PawPrint" → "ph-paw-print"
+  function iconClass(name: string | null | undefined): string {
+    if (!name) return 'ph-tag';
+    const kebab = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+    return `ph-${kebab}`;
   }
 
   function handleSelect(tagId: string | null) {
-    // Toggle off a tag if clicked again → back to "All" (null)
-    // "All" itself (null) is never toggled — clicking it always resets to null
     const next = tagId !== null && tagId === activeTagId ? null : tagId;
-    if (onSelect) {
-      onSelect(next);
-    }
+    onSelect?.(next);
   }
 
   function handleKeydown(e: KeyboardEvent, tagId: string | null) {
@@ -63,7 +49,7 @@
     aria-pressed={activeTagId === null}
     aria-label="Show all topics"
   >
-    <span class="chip-icon"><SparkleIcon weight="bold" size={18} /></span>
+    <i class="ph-bold ph-sparkle chip-icon-i" aria-hidden="true"></i>
     <span class="chip-label">All</span>
   </button>
 
@@ -76,11 +62,7 @@
       aria-pressed={activeTagId === tag.id}
       aria-label={`Filter by ${tag.name}`}
     >
-      <span class="chip-icon">
-        {#each [getIcon(tag.icon)] as Icon}
-          <Icon weight="bold" size={18} />
-        {/each}
-      </span>
+      <i class="ph-bold {iconClass(tag.icon)} chip-icon-i" aria-hidden="true"></i>
       <span class="chip-label">{tag.name}</span>
     </button>
   {/each}
@@ -169,12 +151,10 @@
     outline-offset: 2px;
   }
 
-  .chip-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+  .chip-icon-i {
+    font-size: 18px;
     line-height: 1;
+    flex-shrink: 0;
   }
 
   .chip-label {

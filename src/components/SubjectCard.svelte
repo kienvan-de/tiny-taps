@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ResolvedSound } from './AudioEngine.svelte';
-  import ImageIcon from 'phosphor-svelte/lib/ImageIcon.svelte';
+
 
   interface Props {
     id: string;
@@ -107,7 +107,7 @@
     />
   {:else}
     <div class="card-image-placeholder">
-      <ImageIcon weight="bold" size={48} color="#cbd5e1" />
+      <i class="ph-bold ph-image" style="font-size:48px; color:#cbd5e1;" aria-hidden="true"></i>
     </div>
   {/if}
 

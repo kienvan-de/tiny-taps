@@ -1,5 +1,5 @@
 <script lang="ts">
-  import HouseIcon from 'phosphor-svelte/lib/HouseIcon.svelte';
+  
 
   interface Props {
     href?: string;
@@ -63,7 +63,7 @@
   }}
 >
   <span class="home-icon">
-    <HouseIcon weight="bold" size={52} />
+    <i class="ph-bold ph-house" style="font-size:52px;" aria-hidden="true"></i>
   </span>
 </div>
 
