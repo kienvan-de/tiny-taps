@@ -3,6 +3,11 @@ export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { ICON_GROUPS, DEFAULT_ICON } from '../../lib/phosphor-icons';
 
+// Convert PascalCase icon name → Phosphor CSS class e.g. "PawPrint" → "ph-paw-print"
+function toPhClass(name: string): string {
+  return 'ph-' + name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+}
+
 const env = Astro.locals.env;
 const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
 ---
