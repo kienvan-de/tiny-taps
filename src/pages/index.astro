@@ -1,7 +1,14 @@
 ---
+export const prerender = false;
 import PublicLayout from '../layouts/PublicLayout.astro';
 import HomeDashboard from '../components/HomeDashboard.svelte';
+import LangPicker from '../components/LangPicker.svelte';
 import PawPrint from 'phosphor-astro/PawPrintBold.astro';
+import { DEFAULT_LOCALE, isValidLocale } from '../lib/i18n';
+
+// Read locale from cookie (set by LangPicker on client)
+const cookieLocale = Astro.cookies.get('tt-locale')?.value;
+const initialLocale = isValidLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE;
 ---
 <PublicLayout title="Tiny Taps">
   <div class="dashboard">
@@ -12,10 +19,14 @@ import PawPrint from 'phosphor-astro/PawPrintBold.astro';
         <span class="brand-icon"><PawPrint color="#FF4B4B" /></span>
         <span class="brand-name">Tiny Taps</span>
       </div>
+      <LangPicker
+        client:load
+        locale={initialLocale}
+      />
     </header>
 
-    <!-- ── Client-side dashboard: fetches /api/topics, handles tag filter + pagination ── -->
-    <HomeDashboard client:load />
+    <!-- ── Client-side dashboard ──────────────────────────────────────── -->
+    <HomeDashboard client:load locale={initialLocale} />
 
   </div>
 </PublicLayout>
@@ -31,6 +42,7 @@ import PawPrint from 'phosphor-astro/PawPrintBold.astro';
   .top-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 16px 20px 8px;
     flex-shrink: 0;
   }

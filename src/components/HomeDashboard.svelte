@@ -2,6 +2,14 @@
   import TagFilter from './TagFilter.svelte';
   import TopicCard from './TopicCard.svelte';
   import Pagination from './Pagination.svelte';
+  import { getT, DEFAULT_LOCALE, type Locale } from '../lib/i18n';
+
+  interface Props {
+    locale?: Locale;
+  }
+
+  let { locale = DEFAULT_LOCALE }: Props = $props();
+  let t = $derived(getT(locale));
 
 
   // ── Types ──────────────────────────────────────────────────────────────
@@ -100,13 +108,14 @@
     tags={allTags}
     activeTagId={activeTagId}
     onSelect={handleTagSelect}
+    {locale}
   />
 </div>
 
 <!-- ── Topic grid ─────────────────────────────────────────────────────── -->
 <main class="content">
   {#if loading}
-    <div class="loading-state" aria-live="polite" aria-label="Loading topics">
+    <div class="loading-state" aria-live="polite" aria-label={t.loading}>
       <div class="loading-dots">
         <span></span><span></span><span></span>
       </div>
@@ -114,14 +123,14 @@
   {:else if error}
     <div class="empty-state">
       <div class="empty-icon"><i class="ph-bold ph-sparkle" style="font-size:64px; color:#FFD93D;" aria-hidden="true"></i></div>
-      <div class="empty-text">Oops!</div>
+      <div class="empty-text">{t.oops}</div>
       <div class="empty-sub">{error}</div>
     </div>
   {:else if topics.length === 0}
     <div class="empty-state">
       <div class="empty-icon"><i class="ph-bold ph-sparkle" style="font-size:64px; color:#FFD93D;" aria-hidden="true"></i></div>
-      <div class="empty-text">No topics yet!</div>
-      <div class="empty-sub">Check back soon for new content.</div>
+      <div class="empty-text">{t.noTopics}</div>
+      <div class="empty-sub">{t.checkBackSoon}</div>
     </div>
   {:else}
     <div class="topic-grid">
@@ -132,6 +141,7 @@
           slug={topic.slug}
           backgroundUrl={topic.backgroundUrl}
           tags={topic.tags}
+          {locale}
         />
       {/each}
     </div>

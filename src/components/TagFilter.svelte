@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { getT, DEFAULT_LOCALE, type Locale } from '../lib/i18n';
+
   interface Tag {
     id: string;
     name: string;
@@ -10,13 +12,17 @@
     tags: Tag[];
     activeTagId?: string | null;
     onSelect?: (tagId: string | null) => void;
+    locale?: Locale;
   }
 
   let {
     tags = [],
     activeTagId = null,
     onSelect,
+    locale = DEFAULT_LOCALE,
   }: Props = $props();
+
+  let t = $derived(getT(locale));
 
   // Convert PascalCase icon name from DB to Phosphor CSS class
   // e.g. "PawPrint" → "ph-paw-print"
@@ -39,7 +45,7 @@
   }
 </script>
 
-<div class="tag-filter" role="toolbar" aria-label="Filter by tag">
+<div class="tag-filter" role="toolbar" aria-label={t.filterByTag}>
   <!-- "All" chip -->
   <button
     class="chip"
@@ -47,10 +53,10 @@
     onclick={() => handleSelect(null)}
     onkeydown={(e) => handleKeydown(e, null)}
     aria-pressed={activeTagId === null}
-    aria-label="Show all topics"
+    aria-label={t.showAllTopics}
   >
     <i class="ph-bold ph-sparkle chip-icon-i" aria-hidden="true"></i>
-    <span class="chip-label">All</span>
+    <span class="chip-label">{t.all}</span>
   </button>
 
   {#each tags as tag (tag.id)}
@@ -60,7 +66,7 @@
       onclick={() => handleSelect(tag.id)}
       onkeydown={(e) => handleKeydown(e, tag.id)}
       aria-pressed={activeTagId === tag.id}
-      aria-label={`Filter by ${tag.name}`}
+      aria-label={`${t.filterByTag}: ${tag.name}`}
     >
       <i class="ph-bold {iconClass(tag.icon)} chip-icon-i" aria-hidden="true"></i>
       <span class="chip-label">{tag.name}</span>

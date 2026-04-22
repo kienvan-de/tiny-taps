@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { getT, DEFAULT_LOCALE, type Locale } from '../lib/i18n';
+
   interface Tag {
     id: string;
     name: string;
@@ -11,6 +13,7 @@
     slug: string;
     backgroundUrl?: string | null;
     tags?: Tag[];
+    locale?: Locale;
   }
 
   let {
@@ -19,7 +22,10 @@
     slug,
     backgroundUrl = null,
     tags = [],
+    locale = DEFAULT_LOCALE,
   }: Props = $props();
+
+  let t = $derived(getT(locale));
 
   let isPressed = $state(false);
   let pointerId = $state<number | null>(null);
@@ -93,7 +99,7 @@
   class:pressed={isPressed}
   role="button"
   tabindex="0"
-  aria-label={`Open topic: ${title}`}
+  aria-label={`${t.openTopic}: ${title}`}
   onpointerdown={handlePointerDown}
   onpointerup={handlePointerUp}
   onpointercancel={handlePointerCancel}
