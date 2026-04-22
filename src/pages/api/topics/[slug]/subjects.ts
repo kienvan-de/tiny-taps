@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro';
 import { queryAll } from '../../../../lib/db';
-import { getPublicUrl } from '../../../../lib/r2';
+
 import { getOrGenerateTTS } from '../../../../lib/tts';
 
 export const prerender = false;

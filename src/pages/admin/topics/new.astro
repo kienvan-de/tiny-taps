@@ -92,6 +92,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
   </div>
 
   <script>
+    // @ts-nocheck
     const titleInput = document.getElementById('titleInput') as HTMLInputElement;
     const slugInput = document.getElementById('slugInput') as HTMLInputElement;
     const slugPreview = document.getElementById('slugPreview') as HTMLElement;

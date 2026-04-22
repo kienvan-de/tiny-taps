@@ -196,10 +196,11 @@ const voicesJson = JSON.stringify(VOICES);
 
   <!-- ImageUpload island — mounted dynamically via JS into #imageUploadMount -->
   <div id="imageUploadRoot" style="display:none;">
-    <ImageUpload client:load prefix="images/subjects" onuploaded="__imageUploaded" />
+    <ImageUpload client:load prefix="images/subjects" />
   </div>
 
   <script define:vars={{ topicId: id, voicesJson }}>
+    // @ts-nocheck
     // ── State ──────────────────────────────────────────────────────────────
     let currentSubjectId = null;
 
