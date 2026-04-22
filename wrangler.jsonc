@@ -22,10 +22,15 @@
       "binding": "KV",
       "id": "9fe920d15efb469f91bd3a6595b1cc50"
     }
-  ]
+  ],
   // ADMIN_USERNAME and ADMIN_PASSWORD_HASH must be set as secrets only:
   //   wrangler secret put ADMIN_USERNAME
   //   wrangler secret put ADMIN_PASSWORD_HASH
   //   wrangler secret put R2_PUBLIC_BASE_URL
+  // CF_ENV controls Cache API — only enabled in production deployment
+  "vars": {
+    "CF_ENV": "production"
+  },
+
   // Do NOT put credentials in "vars" — they would be plaintext in the repo.
 }

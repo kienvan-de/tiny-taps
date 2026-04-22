@@ -8,6 +8,7 @@ type TagRow = {
   name: string;
   category: string;
   sort_order: number;
+  icon: string | null;
 };
 
 type TopicRow = {
@@ -17,11 +18,22 @@ type TopicRow = {
   background_key: string | null;
   created_at: string;
   updated_at: string;
-  tags?: TagRow[];
+  tags?: { id: string; name: string; category: string }[];
   backgroundUrl?: string | null;
 };
 
 export async function GET(context: APIContext) {
+  // ── Cloudflare Cache API (public topics, 5-min TTL) ───────────────────
+  // Skip entirely in local dev — miniflare persists cache to disk and serves
+  // stale responses after clean:cf + re-seed. Use CF_ENV=production to enable.
+  const isProd = (context.locals.env as any).CF_ENV === 'production';
+  const cache = (caches as unknown as { default: Cache }).default;
+  const cacheKey = context.request;
+  if (isProd) {
+    const cachedResponse = await cache.match(cacheKey);
+    if (cachedResponse) return cachedResponse;
+  }
+
   const env = context.locals.env;
   const db = env.DB;
   const url = new URL(context.request.url);
@@ -33,7 +45,7 @@ export async function GET(context: APIContext) {
 
   const r2Base = (env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
-  // Build base query depending on tag filter
+  // ── Count + fetch topics (flat, deduplicated via DISTINCT) ────────────
   let countSql: string;
   let topicsSql: string;
   let params: unknown[];
@@ -64,90 +76,57 @@ export async function GET(context: APIContext) {
     params = [pageSize, offset];
   }
 
-  // Total count
   const countResult = tagId
     ? await db.prepare(countSql).bind(tagId).first<{ count: number }>()
     : await db.prepare(countSql).first<{ count: number }>();
   const total = countResult?.count ?? 0;
 
-  // Fetch topics
-  const topics = await queryAll<TopicRow>(db, topicsSql, params);
+  const topicRows = await queryAll<TopicRow>(db, topicsSql, params);
 
-  // Attach tags + backgroundUrl to each topic
-  for (const topic of topics) {
-    topic.tags = await queryAll<TagRow>(
+  // ── Attach tags + backgroundUrl to each topic ─────────────────────────
+  for (const topic of topicRows) {
+    const tagRows = await queryAll<TagRow>(
       db,
-      `SELECT tg.*
+      `SELECT tg.id, tg.name, tg.category, tg.icon
        FROM tags tg
        JOIN topic_tags tt ON tt.tag_id = tg.id
        WHERE tt.topic_id = ?
        ORDER BY tg.sort_order ASC`,
       [topic.id]
     );
+    topic.tags = tagRows.map(t => ({ id: t.id, name: t.name, category: t.category, icon: t.icon }));
     topic.backgroundUrl = topic.background_key ? `${r2Base}/${topic.background_key}` : null;
   }
 
-  // Group topics by tag (all tags, ordered by sort_order)
-  // If a tag filter is active, only return that tag's group.
-  let tags: TagRow[];
-  if (tagId) {
-    const tag = await db
-      .prepare('SELECT * FROM tags WHERE id = ?')
-      .bind(tagId)
-      .first<TagRow>();
-    tags = tag ? [tag] : [];
-  } else {
-    // Only include tags that have at least one topic on this page
-    const tagIds = new Set<string>();
-    for (const topic of topics) {
-      for (const tag of topic.tags ?? []) {
-        tagIds.add(tag.id);
-      }
-    }
-    if (tagIds.size > 0) {
-      const placeholders = [...tagIds].map(() => '?').join(', ');
-      tags = await queryAll<TagRow>(
-        db,
-        `SELECT * FROM tags WHERE id IN (${placeholders}) ORDER BY sort_order ASC`,
-        [...tagIds]
-      );
-    } else {
-      tags = [];
-    }
-  }
+  // ── All tags for filter chips ─────────────────────────────────────────
+  const allTagRows = await queryAll<TagRow>(
+    db,
+    'SELECT id, name, category, icon FROM tags ORDER BY sort_order ASC, name ASC'
+  );
 
-  // Build groups
-  const groups = tags.map(tag => ({
-    tag: { id: tag.id, name: tag.name, category: tag.category },
-    topics: topics
-      .filter(t => t.tags?.some(tg => tg.id === tag.id))
-      .map(t => ({
+  const response = Response.json(
+    {
+      topics: topicRows.map(t => ({
         id: t.id,
         title: t.title,
         slug: t.slug,
-        backgroundUrl: t.backgroundUrl,
-        tags: t.tags?.map(tg => ({ id: tg.id, name: tg.name, category: tg.category })) ?? [],
+        backgroundUrl: t.backgroundUrl ?? null,
+        tags: t.tags ?? [],
       })),
-  })).filter(g => g.topics.length > 0);
+      allTags: allTagRows.map(t => ({ id: t.id, name: t.name, category: t.category, icon: t.icon ?? null })),
+      pagination: { page, pageSize, total },
+    },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    }
+  );
 
-  // Topics with no tags go into an "uncategorized" group
-  const taggedTopicIds = new Set(groups.flatMap(g => g.topics.map(t => t.id)));
-  const untagged = topics.filter(t => !taggedTopicIds.has(t.id));
-  if (untagged.length > 0) {
-    groups.push({
-      tag: { id: '', name: 'Other', category: 'general' },
-      topics: untagged.map(t => ({
-        id: t.id,
-        title: t.title,
-        slug: t.slug,
-        backgroundUrl: t.backgroundUrl,
-        tags: [],
-      })),
-    });
+  // Store in Cloudflare Cache API — non-blocking, production only
+  if (isProd) {
+    context.locals.cfContext?.waitUntil(cache.put(cacheKey, response.clone()));
   }
 
-  return Response.json({
-    groups,
-    pagination: { page, pageSize, total },
-  });
+  return response;
 }

@@ -18,7 +18,6 @@
     language: string | null;
     voice: string | null;
     file_key: string | null;
-    cache_key: string | null;
   }
 
   let { voices = [] }: { voices: Voice[] } = $props();
@@ -128,7 +127,7 @@
       const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
       if (res.ok) {
         const { key } = await res.json();
-        await updateSound(soundId, { file_key: key, cache_key: null });
+        await updateSound(soundId, { file_key: key });
       } else {
         alert('File upload failed');
       }
@@ -198,7 +197,7 @@
   }
 
   function handleTextChange(sound: Sound, value: string) {
-    updateSound(sound.id, { text_content: value, cache_key: null });
+    updateSound(sound.id, { text_content: value });
   }
 
   function handleLanguageChange(sound: Sound, lang: string) {
@@ -206,12 +205,11 @@
     updateSound(sound.id, {
       language: lang,
       voice: firstVoice?.id ?? sound.voice,
-      cache_key: null,
     });
   }
 
   function handleVoiceChange(sound: Sound, voiceId: string) {
-    updateSound(sound.id, { voice: voiceId, cache_key: null });
+    updateSound(sound.id, { voice: voiceId });
   }
 </script>
 
@@ -375,11 +373,7 @@
               {/if}
             </div>
 
-            {#if sound.cache_key}
-              <div style="margin-top:8px; font-size:12px; color:#6BCB77; font-weight:700; display:flex; align-items:center; gap:4px;">
-                <CheckCircleIcon weight="bold" size={14} /> TTS cached
-              </div>
-            {:else if sound.text_content}
+            {#if sound.text_content}
               <div style="margin-top:8px; font-size:12px; color:#f59e0b; font-weight:700;">
                 ⏳ TTS will be generated on first play
               </div>

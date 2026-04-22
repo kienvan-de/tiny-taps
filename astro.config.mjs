@@ -4,7 +4,7 @@ import cloudflare from '@astrojs/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  output: 'server',
+  output: 'static',
   adapter: cloudflare({
     imageService: 'compile',
     platformProxy: {

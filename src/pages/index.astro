@@ -1,136 +1,7 @@
 ---
-export const prerender = false;
 import PublicLayout from '../layouts/PublicLayout.astro';
-import TagFilter from '../components/TagFilter.svelte';
-import TopicCard from '../components/TopicCard.svelte';
-import Pagination from '../components/Pagination.svelte';
+import HomeDashboard from '../components/HomeDashboard.svelte';
 import PawPrint from 'phosphor-astro/PawPrintBold.astro';
-import Sparkle from 'phosphor-astro/SparkleBold.astro';
-
-const env = Astro.locals.env;
-const url = new URL(Astro.request.url);
-
-const tagId = url.searchParams.get('tag') ?? '';
-const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10));
-const pageSize = 20;
-
-// Fetch all tags from DB for filter chips
-const allTagsResult = await env.DB.prepare(
-  'SELECT * FROM tags ORDER BY sort_order ASC, name ASC'
-).all();
-const allTags = allTagsResult.results as {
-  id: string;
-  name: string;
-  category: string;
-  sort_order: number;
-}[];
-
-// Fetch paginated topics from DB directly (SSR — no fetch needed)
-const r2Base = (env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
-const offset = (page - 1) * pageSize;
-
-let topicsResult: any;
-let totalCount: number;
-
-if (tagId) {
-  const countRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT t.id) AS count
-    FROM topics t
-    JOIN topic_tags tt ON tt.topic_id = t.id
-    WHERE tt.tag_id = ?
-  `).bind(tagId).first<{ count: number }>();
-  totalCount = countRow?.count ?? 0;
-
-  topicsResult = await env.DB.prepare(`
-    SELECT DISTINCT t.*
-    FROM topics t
-    JOIN topic_tags tt ON tt.topic_id = t.id
-    WHERE tt.tag_id = ?
-    ORDER BY t.created_at DESC
-    LIMIT ? OFFSET ?
-  `).bind(tagId, pageSize, offset).all();
-} else {
-  const countRow = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM topics'
-  ).first<{ count: number }>();
-  totalCount = countRow?.count ?? 0;
-
-  topicsResult = await env.DB.prepare(`
-    SELECT * FROM topics
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-  `).bind(pageSize, offset).all();
-}
-
-const topics = topicsResult.results as {
-  id: string;
-  title: string;
-  slug: string;
-  background_key: string | null;
-}[];
-
-// Attach tags to each topic
-const topicsWithTags = await Promise.all(
-  topics.map(async (topic) => {
-    const tags = await env.DB.prepare(`
-      SELECT tg.*
-      FROM tags tg
-      JOIN topic_tags tt ON tt.tag_id = tg.id
-      WHERE tt.topic_id = ?
-      ORDER BY tg.sort_order ASC
-    `).bind(topic.id).all();
-
-    return {
-      ...topic,
-      backgroundUrl: topic.background_key ? `${r2Base}/${topic.background_key}` : null,
-      tags: tags.results as { id: string; name: string; category: string }[],
-    };
-  })
-);
-
-// Group topics by tag for display
-// Build a list of tags that appear in the current results
-const tagOrder = new Map<string, { id: string; name: string; category: string }>();
-for (const topic of topicsWithTags) {
-  for (const tag of topic.tags) {
-    if (!tagOrder.has(tag.id)) {
-      tagOrder.set(tag.id, tag);
-    }
-  }
-}
-
-// If filtering by a specific tag, only show that tag's group
-let displayTags: { id: string; name: string; category: string }[];
-if (tagId) {
-  const activeTag = allTags.find(t => t.id === tagId);
-  displayTags = activeTag ? [activeTag] : [];
-} else {
-  // Sort by tag sort_order from DB
-  displayTags = [...tagOrder.values()].sort((a, b) => {
-    const aTag = allTags.find(t => t.id === a.id);
-    const bTag = allTags.find(t => t.id === b.id);
-    return (aTag?.sort_order ?? 99) - (bTag?.sort_order ?? 99);
-  });
-}
-
-const groups = displayTags
-  .map(tag => ({
-    tag,
-    topics: topicsWithTags.filter(t => t.tags.some(tg => tg.id === tag.id)),
-  }))
-  .filter(g => g.topics.length > 0);
-
-// Untagged topics
-const taggedIds = new Set(groups.flatMap(g => g.topics.map(t => t.id)));
-const untagged = topicsWithTags.filter(t => !taggedIds.has(t.id));
-if (untagged.length > 0) {
-  groups.push({
-    tag: { id: '', name: 'Other', category: 'general' },
-    topics: untagged,
-  });
-}
-
-const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 ---
 <PublicLayout title="Tiny Taps">
   <div class="dashboard">
@@ -143,82 +14,13 @@ const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
       </div>
     </header>
 
-    <!-- ── Tag filter (client interactive) ────────────────────────────── -->
-    <div class="filter-row">
-      <TagFilter
-        client:load
-        tags={allTags}
-        activeTagId={tagId || null}
-        onchange={(id) => {
-          const params = new URLSearchParams(window.location.search);
-          if (id) {
-            params.set('tag', id);
-          } else {
-            params.delete('tag');
-          }
-          params.delete('page');
-          window.location.href = `/?${params.toString()}`;
-        }}
-      />
-    </div>
-
-    <!-- ── Topic groups ────────────────────────────────────────────────── -->
-    <main class="content">
-      {topicsWithTags.length === 0 ? (
-        <div class="empty-state">
-          <div class="empty-icon"><Sparkle color="#FFD93D" /></div>
-          <div class="empty-text">No topics yet!</div>
-          <div class="empty-sub">Check back soon for new content.</div>
-        </div>
-      ) : (
-        <>
-          {groups.map(group => (
-            <section class="topic-group">
-              {groups.length > 1 && (
-                <h2 class="group-heading">
-                  {group.tag.name}
-                </h2>
-              )}
-              <div class="topic-grid">
-                {group.topics.map(topic => (
-                  <TopicCard
-                    client:load
-                    id={topic.id}
-                    title={topic.title}
-                    slug={topic.slug}
-                    backgroundUrl={topic.backgroundUrl}
-                    tags={topic.tags}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-
-          <!-- ── Pagination ──────────────────────────────────────────── -->
-          {totalPages > 1 && (
-            <div class="pagination-wrap">
-              <Pagination
-                client:load
-                page={page}
-                pageSize={pageSize}
-                total={totalCount}
-                onchange={(p) => {
-                  const params = new URLSearchParams(window.location.search);
-                  params.set('page', String(p));
-                  window.location.href = `/?${params.toString()}`;
-                }}
-              />
-            </div>
-          )}
-        </>
-      )}
-    </main>
+    <!-- ── Client-side dashboard: fetches /api/topics, handles tag filter + pagination ── -->
+    <HomeDashboard client:load />
 
   </div>
 </PublicLayout>
 
 <style>
-  /* ── Dashboard layout ─────────────────────────────────────────────────── */
   .dashboard {
     min-height: 100vh;
     background: #FFF9E6;
@@ -226,7 +28,6 @@ const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     flex-direction: column;
   }
 
-  /* ── Top bar ──────────────────────────────────────────────────────────── */
   .top-bar {
     display: flex;
     align-items: center;
@@ -254,77 +55,5 @@ const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     font-weight: 800;
     color: #4A4A4A;
     letter-spacing: -0.5px;
-  }
-
-  /* ── Filter row ───────────────────────────────────────────────────────── */
-  .filter-row {
-    padding: 4px 16px 0;
-    flex-shrink: 0;
-  }
-
-  /* ── Main content ─────────────────────────────────────────────────────── */
-  .content {
-    flex: 1;
-    padding: 16px 20px 32px;
-    overflow-y: auto;
-  }
-
-  /* ── Topic group section ──────────────────────────────────────────────── */
-  .topic-group {
-    margin-bottom: 32px;
-  }
-
-  .group-heading {
-    font-family: 'Nunito', sans-serif;
-    font-size: 22px;
-    font-weight: 800;
-    color: #4A4A4A;
-    margin: 0 0 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* ── Topic grid ───────────────────────────────────────────────────────── */
-  .topic-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-  }
-
-  /* ── Pagination wrapper ───────────────────────────────────────────────── */
-  .pagination-wrap {
-    margin-top: 16px;
-  }
-
-  /* ── Empty state ──────────────────────────────────────────────────────── */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 20px;
-    text-align: center;
-  }
-
-  .empty-icon,
-  .empty-icon :global(svg) {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 16px;
-  }
-
-  .empty-text {
-    font-family: 'Nunito', sans-serif;
-    font-size: 24px;
-    font-weight: 800;
-    color: #4A4A4A;
-    margin-bottom: 8px;
-  }
-
-  .empty-sub {
-    font-family: 'Nunito', sans-serif;
-    font-size: 16px;
-    color: #94a3b8;
   }
 </style>

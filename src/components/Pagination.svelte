@@ -3,10 +3,10 @@
     page: number;
     pageSize: number;
     total: number;
-    onchange?: (page: number) => void;
+    onPage?: (page: number) => void;
   }
 
-  let { page, pageSize, total, onchange }: Props = $props();
+  let { page, pageSize, total, onPage }: Props = $props();
 
   let totalPages = $derived(Math.max(1, Math.ceil(total / pageSize)));
   let hasPrev = $derived(page > 1);
@@ -27,7 +27,7 @@
 
   function go(p: number) {
     if (p < 1 || p > totalPages || p === page) return;
-    onchange?.(p);
+    onPage?.(p);
   }
 </script>
 

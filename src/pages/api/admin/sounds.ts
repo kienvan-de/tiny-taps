@@ -13,7 +13,6 @@ type SoundRow = {
   language: string | null;
   voice: string | null;
   file_key: string | null;
-  cache_key: string | null;
   created_at: string;
 };
 
@@ -90,7 +89,6 @@ export async function PUT(context: APIContext) {
     language?: string;
     voice?: string;
     file_key?: string | null;
-    cache_key?: string | null;
   };
   try {
     body = await context.request.json();
@@ -110,7 +108,6 @@ export async function PUT(context: APIContext) {
     'language',
     'voice',
     'file_key',
-    'cache_key',
   ] as const;
 
   const updates: string[] = [];

@@ -11,7 +11,9 @@
     "types": "wrangler types",
     "migrate:local": "wrangler d1 migrations apply tiny-taps-db --local",
     "migrate:remote": "wrangler d1 migrations apply tiny-taps-db --remote",
-    "seed": "wrangler d1 execute tiny-taps-db --local --file=scripts/seed.sql"
+    "seed": "wrangler d1 execute tiny-taps-db --local --file=scripts/seed.sql",
+    "deploy": "bun run build && bunx wrangler deploy",
+    "clean:cf": "rm -rf .wrangler/state && echo '✓ CF local state cleared (D1 + R2 + KV + cache)'"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",

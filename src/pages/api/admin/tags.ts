@@ -11,7 +11,7 @@ export async function GET(context: APIContext) {
 
 export async function POST(context: APIContext) {
   const db = context.locals.env.DB;
-  let body: { name: string; category: string; sort_order?: number };
+  let body: { name: string; category: string; sort_order?: number; icon?: string };
   try {
     body = await context.request.json();
   } catch {
@@ -21,11 +21,12 @@ export async function POST(context: APIContext) {
     return Response.json({ error: 'name and category are required' }, { status: 400 });
   }
   const id = generateId();
-  await execute(db, 'INSERT INTO tags (id, name, category, sort_order) VALUES (?, ?, ?, ?)', [
+  await execute(db, 'INSERT INTO tags (id, name, category, sort_order, icon) VALUES (?, ?, ?, ?, ?)', [
     id,
     body.name,
     body.category,
     body.sort_order ?? 0,
+    body.icon ?? null,
   ]);
   const tag = await queryFirst(db, 'SELECT * FROM tags WHERE id = ?', [id]);
   return Response.json(tag, { status: 201 });
@@ -33,7 +34,7 @@ export async function POST(context: APIContext) {
 
 export async function PUT(context: APIContext) {
   const db = context.locals.env.DB;
-  let body: { id: string; name?: string; category?: string; sort_order?: number };
+  let body: { id: string; name?: string; category?: string; sort_order?: number; icon?: string | null };
   try {
     body = await context.request.json();
   } catch {
@@ -57,6 +58,10 @@ export async function PUT(context: APIContext) {
   if (body.sort_order !== undefined) {
     updates.push('sort_order = ?');
     params.push(body.sort_order);
+  }
+  if (body.icon !== undefined) {
+    updates.push('icon = ?');
+    params.push(body.icon);
   }
   if (updates.length === 0) {
     return Response.json(existing);

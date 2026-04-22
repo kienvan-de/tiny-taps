@@ -56,11 +56,34 @@
     e.preventDefault();
   }
 
+  // Toddler-friendly bright solid colors — one per card, consistent via id hash
+  const CARD_COLORS = [
+    '#FF3131', // crayon red
+    '#FF7A00', // crayon orange
+    '#FFE600', // crayon yellow
+    '#00D26A', // crayon green
+    '#0095FF', // crayon blue
+    '#BF5AF2', // crayon purple
+    '#FF2D78', // crayon hot pink
+    '#00C2FF', // crayon sky blue
+    '#FF6000', // crayon amber
+    '#00E5C4', // crayon mint
+  ];
+
+  function cardColor(id: string): string {
+    // Simple hash of the id string → stable color per topic
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    }
+    return CARD_COLORS[hash % CARD_COLORS.length];
+  }
+
   function tagStyle(category: string): string {
     if (category === 'age') {
-      return 'background:#e0f2fe; color:#0369a1;';
+      return 'background:rgba(255,255,255,0.3); color:white;';
     }
-    return 'background:#dcfce7; color:#166534;';
+    return 'background:rgba(255,255,255,0.3); color:white;';
   }
 </script>
 
@@ -94,7 +117,7 @@
         aria-hidden="true"
       />
     {:else}
-      <div class="bg-placeholder"></div>
+      <div class="bg-placeholder" style="background:{cardColor(id)};"></div>
     {/if}
     <!-- Gradient overlay for text legibility -->
     <div class="bg-gradient" aria-hidden="true"></div>
@@ -102,7 +125,10 @@
 
   <!-- Content overlay -->
   <div class="card-content">
-    <!-- Tags row (top) -->
+    <!-- Title center -->
+    <div class="card-title">{title}</div>
+
+    <!-- Tags row below title -->
     {#if tags.length > 0}
       <div class="tags-row">
         {#each tags.slice(0, 3) as tag}
@@ -112,9 +138,6 @@
         {/each}
       </div>
     {/if}
-
-    <!-- Title (bottom) -->
-    <div class="card-title">{title}</div>
   </div>
 </div>
 
@@ -182,18 +205,13 @@
   .bg-placeholder {
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #4BA3FF 0%, #6BCB77 100%);
+    /* color set inline per card via cardColor(id) */
   }
 
   .bg-gradient {
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.05) 0%,
-      rgba(0, 0, 0, 0.0) 40%,
-      rgba(0, 0, 0, 0.55) 100%
-    );
+    background: rgba(0, 0, 0, 0.2);
   }
 
   /* ── Content overlay ──────────────────────────────────────────────────── */
@@ -204,9 +222,24 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    padding: 10px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
     box-sizing: border-box;
+  }
+
+  /* ── Title ────────────────────────────────────────────────────────────── */
+  .card-title {
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(18px, 3.5vw, 28px);
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    line-height: 1.2;
+    text-align: center;
+    word-break: break-word;
+    pointer-events: none;
   }
 
   /* ── Tags ─────────────────────────────────────────────────────────────── */
@@ -214,12 +247,12 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    align-self: flex-start;
+    justify-content: center;
   }
 
   .tag-pill {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 2px 10px;
     border-radius: 20px;
     font-family: 'Nunito', sans-serif;
     font-size: 11px;
@@ -227,17 +260,5 @@
     letter-spacing: 0.02em;
     backdrop-filter: blur(4px);
     white-space: nowrap;
-  }
-
-  /* ── Title ─────────────────────────────────────────────────────────────── */
-  .card-title {
-    font-family: 'Nunito', sans-serif;
-    font-size: clamp(16px, 3vw, 24px);
-    font-weight: 800;
-    color: white;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-    line-height: 1.2;
-    word-break: break-word;
-    pointer-events: none;
   }
 </style>

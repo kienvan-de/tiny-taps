@@ -13,9 +13,14 @@
     sounds: ResolvedSound[];
   }
 
+  export interface AudioEngineAPI {
+    play: (subjectId: string, onDone?: () => void) => void;
+    stop: () => void;
+  }
+
   interface Props {
     subjects: SubjectAudio[];
-    onReady?: () => void;
+    onReady?: (engine: AudioEngineAPI) => void;
     onError?: (err: string) => void;
   }
 
@@ -47,10 +52,14 @@
 
   // ── Preloading ──────────────────────────────────────────────────────────
 
+  function getAPI(): AudioEngineAPI {
+    return { play, stop };
+  }
+
   async function preloadAll() {
     if (!subjects.length) {
       isReady = true;
-      onReady?.();
+      onReady?.(getAPI());
       return;
     }
 
@@ -112,7 +121,7 @@
     await Promise.all(workers);
 
     isReady = true;
-    onReady?.();
+    onReady?.(getAPI());
   }
 
   // ── Playback ────────────────────────────────────────────────────────────
@@ -139,59 +148,58 @@
    * If the subject is already playing, stop and restart.
    * If a different subject is playing, stop it and start the new one.
    */
-  export function play(subjectId: string) {
-    // Stop whatever is currently playing
+  export function play(subjectId: string, onDone?: () => void) {
     stopCurrent();
 
     const ctx = getOrCreateContext();
-    // Resume context if suspended (e.g. after page focus loss)
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
     const decoded = decodedMap.get(subjectId);
-    if (!decoded || decoded.length === 0) return;
+    if (!decoded || decoded.length === 0) { onDone?.(); return; }
 
     currentSubjectId = subjectId;
 
-    // Filter to only sounds with successfully decoded buffers
     const playable = decoded.filter(s => s.buffer !== null);
-    if (playable.length === 0) return;
+    if (playable.length === 0) { onDone?.(); return; }
 
-    // Schedule each sound: accumulate absolute time from now
-    let accumulatedDelay = 0;
+    // Schedule sounds sequentially:
+    // scheduleAt = previous sound end time + this sound's delayBeforeMs
+    let scheduleAt = 0;
 
     for (let i = 0; i < playable.length; i++) {
       const sound = playable[i];
-      accumulatedDelay += sound.delayBeforeMs;
+      const durationMs = sound.buffer!.duration * 1000;
+      const isLast = i === playable.length - 1;
 
-      const capturedDelay = accumulatedDelay;
+      scheduleAt += sound.delayBeforeMs;
+
+      const capturedStart = scheduleAt;
       const capturedBuffer = sound.buffer!;
       const capturedSubjectId = subjectId;
 
       const t = setTimeout(() => {
-        // Safety check: make sure we're still supposed to be playing this subject
         if (currentSubjectId !== capturedSubjectId) return;
-
         try {
           const source = ctx.createBufferSource();
           source.buffer = capturedBuffer;
           source.connect(ctx.destination);
           source.start();
           currentSources.push(source);
-
-          // Remove from active sources when done
           source.onended = () => {
             const idx = currentSources.indexOf(source);
             if (idx !== -1) currentSources.splice(idx, 1);
             try { source.disconnect(); } catch {}
+            // Fire onDone after the last sound finishes playing
+            if (isLast) onDone?.();
           };
         } catch (err) {
           console.warn('[AudioEngine] Playback error:', err);
+          if (isLast) onDone?.();
         }
-      }, capturedDelay);
+      }, capturedStart);
 
       currentTimeouts.push(t);
+      scheduleAt += durationMs;
     }
   }
 
@@ -231,14 +239,6 @@
 
 <!--
   AudioEngine is a headless component — no visible DOM output.
-  It exposes play(subjectId) and stop() for parent components to call.
-
-  Loading progress is available via the isReady and loadProgress/loadTotal bindings
-  if the parent wants to show a preload indicator.
+  It exposes play(subjectId) via the tinytaps:audioEngineReady custom event.
+  Loading progress is tracked internally via isReady / loadProgress / loadTotal.
 -->
-{#if !isReady && loadTotal > 0}
-  <!-- Optionally rendered slot for loading indicator -->
-  <slot name="loading" {loadProgress} {loadTotal}>
-    <!-- Default: nothing visible -->
-  </slot>
-{/if}

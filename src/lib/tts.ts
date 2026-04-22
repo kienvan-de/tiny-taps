@@ -10,10 +10,14 @@ async function sha256(text: string): Promise<string> {
 }
 
 /**
- * Returns a public URL for the TTS audio.
- * Checks R2 cache first; if miss, generates via Edge TTS and caches.
+ * Returns a public R2 URL for the TTS audio.
+ * The R2 key is derived deterministically from (text, language, voice) —
+ * no cache_key column in D1 needed.
  *
- * Cache key: audio/tts/{sha256(text|language|voice)}.mp3
+ * Flow:
+ *  1. Compute key = audio/tts/{sha256(text|language|voice)}.mp3
+ *  2. headObject(R2, key) — if exists, return public URL immediately
+ *  3. Cache miss → synthesize via Edge TTS → upload to R2 → return public URL
  */
 export async function getOrGenerateTTS(
   env: App.Locals['env'],
@@ -21,33 +25,21 @@ export async function getOrGenerateTTS(
   language: string,
   voice: string
 ): Promise<string> {
-  const cacheKey = await computeCacheKey(text, language, voice);
+  const key = await r2Key(text, language, voice);
 
-  // 1. Check R2 cache
-  const existing = await headObject(env, cacheKey);
+  const existing = await headObject(env, key);
   if (existing) {
-    return getPublicUrl(env, cacheKey);
+    return getPublicUrl(env, key);
   }
 
-  // 2. Cache miss → generate via Edge TTS
   const audioBuffer = await synthesizeToBuffer({ text, voice });
+  await putObject(env, key, audioBuffer, 'audio/mpeg');
 
-  // 3. Store in R2
-  await putObject(env, cacheKey, audioBuffer, 'audio/mpeg');
-
-  return getPublicUrl(env, cacheKey);
+  return getPublicUrl(env, key);
 }
 
-/**
- * Computes the deterministic R2 cache key for a given TTS request
- * without generating audio. Used by the sounds API to update the DB
- * cache_key field after generation.
- */
-export async function computeCacheKey(
-  text: string,
-  language: string,
-  voice: string
-): Promise<string> {
+/** Deterministic R2 key for a TTS sound — sha256(text|language|voice) */
+async function r2Key(text: string, language: string, voice: string): Promise<string> {
   const hash = await sha256(`${text}|${language}|${voice}`);
   return `audio/tts/${hash}.mp3`;
 }

@@ -1,43 +1,92 @@
 ---
 export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { ICON_GROUPS, DEFAULT_ICON } from '../../lib/phosphor-icons';
 
 const env = Astro.locals.env;
 const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, name ASC').all();
 ---
 <AdminLayout title="Tags">
+
+  <!-- ── Add Tag form ──────────────────────────────────────────────────── -->
   <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:24px;">
     <h2 style="font-size:16px; font-weight:800; color:#1e293b; margin:0 0 16px;">Add Tag</h2>
-    <form id="createTagForm" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <div>
-        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Name</label>
-        <input
-          name="name"
-          required
-          placeholder="e.g. Animals"
-          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:160px;"
-        />
+    <form id="createTagForm">
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Name</label>
+          <input
+            name="name"
+            required
+            placeholder="e.g. Animals"
+            style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:160px;"
+          />
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Category</label>
+          <select
+            name="category"
+            style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; background:white;"
+          >
+            <option value="age">Age</option>
+            <option value="category">Category</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Sort Order</label>
+          <input
+            name="sort_order"
+            type="number"
+            value="0"
+            min="0"
+            style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:90px;"
+          />
+        </div>
       </div>
-      <div>
-        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Category</label>
-        <select
-          name="category"
-          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; background:white;"
-        >
-          <option value="age">Age</option>
-          <option value="category">Category</option>
-        </select>
+
+      <!-- ── Icon picker ──────────────────────────────────────────────── -->
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:8px;">Icon</label>
+
+        <!-- Hidden input stores selected icon name -->
+        <input type="hidden" name="icon" id="iconInput" value={DEFAULT_ICON} />
+
+        <!-- Selected preview -->
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div style="width:40px; height:40px; border-radius:10px; background:#eff8ff; border:2px solid #4BA3FF; display:flex; align-items:center; justify-content:center; color:#4BA3FF; font-size:11px; font-weight:800;" id="iconPreview">
+            <span id="iconPreviewText">{DEFAULT_ICON}</span>
+          </div>
+          <span style="font-size:13px; color:#64748b;">Selected: <strong id="iconPreviewLabel">{DEFAULT_ICON}</strong></span>
+        </div>
+
+        <!-- Icon groups -->
+        <div style="border:1.5px solid #e2e8f0; border-radius:10px; overflow:hidden; max-height:360px; overflow-y:auto;">
+          {ICON_GROUPS.map(group => (
+            <div>
+              <div style="padding:8px 12px; background:#f8fafc; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:1;">
+                {group.group}
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; padding:10px;">
+                {group.icons.map(icon => (
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    data-icon={icon.name}
+                    data-label={icon.label}
+                    title={icon.label}
+                    aria-label={icon.label}
+                  >
+                    <span class="icon-btn-svg">{icon.name.slice(0,2)}</span>
+                    <span class="icon-btn-label">{icon.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div>
-        <label style="display:block; font-size:13px; font-weight:700; color:#475569; margin-bottom:4px;">Sort Order</label>
-        <input
-          name="sort_order"
-          type="number"
-          value="0"
-          min="0"
-          style="border:1.5px solid #cbd5e1; border-radius:8px; padding:9px 12px; font-size:14px; font-family:inherit; outline:none; width:90px;"
-        />
-      </div>
+
       <button
         type="submit"
         style="background:#4BA3FF; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:800; font-family:inherit; cursor:pointer;"
@@ -47,6 +96,7 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
     </form>
   </div>
 
+  <!-- ── Tags table ────────────────────────────────────────────────────── -->
   <div style="background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
     {tags.results.length === 0 ? (
       <div style="text-align:center; color:#94a3b8; padding:40px 0; font-size:15px;">
@@ -56,86 +106,207 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
       <table style="width:100%; border-collapse:collapse;">
         <thead>
           <tr style="border-bottom:2px solid #f1f5f9;">
+            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b; width:52px;">Icon</th>
             <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Name</th>
             <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Category</th>
-            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Sort Order</th>
+            <th style="text-align:left; padding:8px 12px; font-size:13px; font-weight:700; color:#64748b;">Sort</th>
             <th style="padding:8px 12px;"></th>
           </tr>
         </thead>
         <tbody>
-          {(tags.results as any[]).map((tag) => (
-            <tr data-id={tag.id} style="border-bottom:1px solid #f8fafc;">
-              <td style="padding:10px 12px; font-size:14px; font-weight:700;">
-                <span id={`name-${tag.id}`}>{tag.name}</span>
-              </td>
-              <td style="padding:10px 12px; font-size:14px; color:#64748b;">
-                <span id={`cat-${tag.id}`} style={`display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:700; background:${tag.category === 'age' ? '#e0f2fe' : '#dcfce7'}; color:${tag.category === 'age' ? '#0369a1' : '#166534'};`}>
-                  {tag.category}
-                </span>
-              </td>
-              <td style="padding:10px 12px; font-size:14px; color:#64748b;">
-                {tag.sort_order}
-              </td>
-              <td style="padding:10px 12px; display:flex; gap:6px; justify-content:flex-end;">
-                <button
-                  onclick={`deleteTag('${tag.id}')`}
-                  style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:5px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
+          {(tags.results as any[]).map((tag) => {
+            const iconName = tag.icon ?? DEFAULT_ICON;
+            return (
+              <tr style="border-bottom:1px solid #f8fafc;">
+                <td style="padding:10px 12px;">
+                  <div style="width:32px; height:32px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#475569; font-size:11px; font-weight:800;">
+                    {iconName.slice(0,2)}
+                  </div>
+                </td>
+                <td style="padding:10px 12px; font-size:14px; font-weight:700;">{tag.name}</td>
+                <td style="padding:10px 12px; font-size:14px; color:#64748b;">
+                  <span style={`display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:700; background:${tag.category === 'age' ? '#e0f2fe' : '#dcfce7'}; color:${tag.category === 'age' ? '#0369a1' : '#166534'};`}>
+                    {tag.category}
+                  </span>
+                </td>
+                <td style="padding:10px 12px; font-size:14px; color:#64748b;">{tag.sort_order}</td>
+                <td style="padding:10px 12px; text-align:right;">
+                  <button
+                    onclick={`deleteTag('${tag.id}')`}
+                    style="background:#fee2e2; color:#ef4444; border:none; border-radius:6px; padding:5px 12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer;"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     )}
   </div>
+</AdminLayout>
 
-  <script>
-    const form = document.getElementById('createTagForm') as HTMLFormElement;
+<style>
+  /* ── Icon picker buttons ─────────────────────────────────────────────── */
+  .icon-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    border: 2px solid #e2e8f0;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    transition: all 120ms ease-out;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target as HTMLFormElement);
-      const data = {
-        name: String(fd.get('name') ?? '').trim(),
-        category: String(fd.get('category') ?? 'category'),
-        sort_order: parseInt(String(fd.get('sort_order') ?? '0'), 10) || 0,
-      };
-      if (!data.name) return;
+  .icon-btn:hover {
+    background: #eff8ff;
+    border-color: #4BA3FF;
+    color: #0369a1;
+    transform: translateY(-1px);
+  }
 
-      const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-      btn.disabled = true;
-      btn.textContent = 'Adding…';
+  .icon-btn.selected {
+    background: #4BA3FF;
+    border-color: #4BA3FF;
+    color: white;
+    box-shadow: 0 2px 8px rgba(75,163,255,0.35);
+  }
 
-      const res = await fetch('/api/admin/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+  .icon-btn-svg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    pointer-events: none;
+  }
 
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        const err = await res.json().catch(() => ({} as Record<string, string>));
-        alert((err as Record<string, string>)['error'] ?? 'Failed to create tag');
-        btn.disabled = false;
-        btn.textContent = 'Add Tag';
-      }
-    });
+  .icon-btn-svg :global(svg) {
+    width: 22px;
+    height: 22px;
+  }
 
-    async function deleteTag(id: string) {
-      if (!confirm('Delete this tag? Topics using this tag will be unaffected.')) return;
-      const res = await fetch('/api/admin/tags', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        alert('Failed to delete tag');
+  .icon-btn-label {
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    color: #94a3b8;
+    overflow: hidden;
+    max-width: 52px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+
+  .icon-btn.selected .icon-btn-label {
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* ── Preview icon size ───────────────────────────────────────────────── */
+  #iconPreview :global(svg) {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* ── Table row icon size ─────────────────────────────────────────────── */
+  td :global(svg) {
+    width: 18px;
+    height: 18px;
+  }
+</style>
+
+<script>
+  const iconInput = document.getElementById('iconInput') as HTMLInputElement;
+  const iconPreviewLabel = document.getElementById('iconPreviewLabel') as HTMLElement;
+  const iconPreview = document.getElementById('iconPreview') as HTMLElement;
+
+  function selectIcon(name: string, label: string) {
+    iconInput.value = name;
+    iconPreviewLabel.textContent = label;
+
+    // Swap preview SVG — find the selected button's SVG and clone it
+    const selectedBtn = document.querySelector(`.icon-btn[data-icon="${name}"]`) as HTMLElement;
+    if (selectedBtn) {
+      const svgEl = selectedBtn.querySelector('svg');
+      if (svgEl) {
+        iconPreview.innerHTML = '';
+        iconPreview.appendChild(svgEl.cloneNode(true));
       }
     }
-  </script>
-</AdminLayout>
+
+    // Update selected state
+    document.querySelectorAll('.icon-btn').forEach(btn => {
+      btn.classList.toggle('selected', (btn as HTMLElement).dataset.icon === name);
+    });
+  }
+
+  document.querySelectorAll('.icon-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = (btn as HTMLElement).dataset.icon ?? '';
+      const label = (btn as HTMLElement).dataset.label ?? name;
+      selectIcon(name, label);
+    });
+  });
+
+  // Mark default as selected on load
+  const defaultBtn = document.querySelector(`.icon-btn[data-icon="${iconInput.value}"]`);
+  defaultBtn?.classList.add('selected');
+
+  // ── Create tag form ───────────────────────────────────────────────────
+  const form = document.getElementById('createTagForm') as HTMLFormElement;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target as HTMLFormElement);
+    const data = {
+      name: String(fd.get('name') ?? '').trim(),
+      category: String(fd.get('category') ?? 'category'),
+      sort_order: parseInt(String(fd.get('sort_order') ?? '0'), 10) || 0,
+      icon: String(fd.get('icon') ?? '').trim() || null,
+    };
+    if (!data.name) return;
+
+    const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    const res = await fetch('/api/admin/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      const err = await res.json().catch(() => ({} as Record<string, string>));
+      alert((err as Record<string, string>)['error'] ?? 'Failed to create tag');
+      btn.disabled = false;
+      btn.textContent = 'Add Tag';
+    }
+  });
+
+  async function deleteTag(id: string) {
+    if (!confirm('Delete this tag? Topics using this tag will be unaffected.')) return;
+    const res = await fetch('/api/admin/tags', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('Failed to delete tag');
+    }
+  }
+</script>

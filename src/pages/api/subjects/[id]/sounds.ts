@@ -1,7 +1,7 @@
 import type { APIContext } from 'astro';
-import { queryAll, execute } from '../../../../lib/db';
+import { queryAll } from '../../../../lib/db';
 import { getPublicUrl } from '../../../../lib/r2';
-import { getOrGenerateTTS, computeCacheKey } from '../../../../lib/tts';
+import { getOrGenerateTTS } from '../../../../lib/tts';
 
 export const prerender = false;
 
@@ -15,7 +15,6 @@ type SoundRow = {
   language: string | null;
   voice: string | null;
   file_key: string | null;
-  cache_key: string | null;
 };
 
 type ResolvedSound = {
@@ -57,20 +56,10 @@ export async function GET(context: APIContext) {
 
         if (!text) continue;
 
-        // Check if we already have a cached key in the DB
-        if (sound.cache_key) {
-          url = getPublicUrl(env, sound.cache_key);
-        } else {
-          // Generate TTS and cache
-          try {
-            url = await getOrGenerateTTS(env, text, language, voice);
-            // Update DB with the cache key so next call skips generation
-            const cacheKey = await computeCacheKey(text, language, voice);
-            await execute(db, 'UPDATE sounds SET cache_key = ? WHERE id = ?', [cacheKey, sound.id]);
-          } catch {
-            // TTS not yet implemented — skip this sound gracefully
-            continue;
-          }
+        try {
+          url = await getOrGenerateTTS(env, text, language, voice);
+        } catch {
+          continue;
         }
       }
 

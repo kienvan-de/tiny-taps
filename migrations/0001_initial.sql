@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS tags (
   id         TEXT PRIMARY KEY,
   name       TEXT NOT NULL UNIQUE,
   category   TEXT NOT NULL DEFAULT 'general',
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  icon       TEXT DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS topics (
@@ -45,8 +46,6 @@ CREATE TABLE IF NOT EXISTS sounds (
   voice           TEXT DEFAULT 'en-US-AvaMultilingualNeural',
   -- For type='file'
   file_key        TEXT,
-  -- TTS cache
-  cache_key       TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

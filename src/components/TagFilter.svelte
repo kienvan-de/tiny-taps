@@ -1,49 +1,47 @@
 <script lang="ts">
-  import {
-    SparkleIcon, PawPrintIcon, CarIcon, ForkKnifeIcon, PaletteIcon,
-    DiamondIcon, NumberSquareOneIcon, PlantIcon, TagIcon,
-    BabyIcon, UserIcon, UsersThreeIcon
-  } from 'phosphor-svelte';
+  import { TagIcon, SparkleIcon } from 'phosphor-svelte';
 
   interface Tag {
     id: string;
     name: string;
     category: string;
-    emoji?: string;
+    icon?: string | null;
   }
 
   interface Props {
     tags: Tag[];
     activeTagId?: string | null;
-    onchange?: (tagId: string | null) => void;
+    onSelect?: (tagId: string | null) => void;
   }
 
   let {
     tags = [],
     activeTagId = null,
-    onchange,
+    onSelect,
   }: Props = $props();
 
-  const TAG_ICONS: Record<string, any> = {
-    '0-1': BabyIcon,
-    '1-2': BabyIcon,
-    '2-3': UserIcon,
-    '3+': UsersThreeIcon,
-    'Animals': PawPrintIcon,
-    'Vehicles': CarIcon,
-    'Food': ForkKnifeIcon,
-    'Colors': PaletteIcon,
-    'Shapes': DiamondIcon,
-    'Numbers': NumberSquareOneIcon,
-    'Nature': PlantIcon,
-  };
+  // Lazy-load the icon map only on the client — it imports 90+ Svelte components
+  // and crashes Astro SSR if imported at the module level.
+  let iconMap: Record<string, any> = $state({});
 
-  function getTagIcon(tag: Tag): any {
-    return TAG_ICONS[tag.name] ?? TagIcon;
+  $effect(() => {
+    import('../lib/phosphor-svelte-map').then(m => {
+      iconMap = m.SVELTE_ICON_MAP;
+    });
+  });
+
+  function getIcon(name: string | null | undefined): any {
+    if (!name) return TagIcon;
+    return iconMap[name] ?? TagIcon;
   }
 
   function handleSelect(tagId: string | null) {
-    onchange?.(tagId === activeTagId ? null : tagId);
+    // Toggle off a tag if clicked again → back to "All" (null)
+    // "All" itself (null) is never toggled — clicking it always resets to null
+    const next = tagId !== null && tagId === activeTagId ? null : tagId;
+    if (onSelect) {
+      onSelect(next);
+    }
   }
 
   function handleKeydown(e: KeyboardEvent, tagId: string | null) {
@@ -78,7 +76,9 @@
       aria-label={`Filter by ${tag.name}`}
     >
       <span class="chip-icon">
-        <svelte:component this={getTagIcon(tag)} weight="bold" size={18} />
+        {#each [getIcon(tag.icon)] as Icon}
+          <Icon weight="bold" size={18} />
+        {/each}
       </span>
       <span class="chip-label">{tag.name}</span>
     </button>
@@ -107,7 +107,6 @@
     align-items: center;
     gap: 6px;
 
-    /* Minimum 44px height for touch targets (parent dashboard allows scroll) */
     min-height: 44px;
     padding: 8px 16px;
     border-radius: 999px;
@@ -151,7 +150,6 @@
     transform: scale(0.96);
   }
 
-  /* ── Active chip ───────────────────────────────────────────────────────── */
   .chip.active {
     background: #4BA3FF;
     border-color: #4BA3FF;
@@ -165,13 +163,11 @@
     color: white;
   }
 
-  /* ── Focus ring ────────────────────────────────────────────────────────── */
   .chip:focus-visible {
     outline: 3px solid #4BA3FF;
     outline-offset: 2px;
   }
 
-  /* ── Icon & label ──────────────────────────────────────────────────────── */
   .chip-icon {
     display: flex;
     align-items: center;

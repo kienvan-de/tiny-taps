@@ -1,7 +1,7 @@
 import type { APIContext } from 'astro';
-import { queryAll, execute } from '../../../../lib/db';
+import { queryAll } from '../../../../lib/db';
 import { getPublicUrl } from '../../../../lib/r2';
-import { getOrGenerateTTS, computeCacheKey } from '../../../../lib/tts';
+import { getOrGenerateTTS } from '../../../../lib/tts';
 
 export const prerender = false;
 
@@ -23,7 +23,6 @@ type SoundRow = {
   language: string | null;
   voice: string | null;
   file_key: string | null;
-  cache_key: string | null;
 };
 
 export async function GET(context: APIContext) {
@@ -75,26 +74,17 @@ export async function GET(context: APIContext) {
           url = `${r2Base}/${sound.file_key}`;
         } else {
           // type === 'text'
+          // Always call getOrGenerateTTS — it does headObject on R2 first.
+          // R2 key is derived from (text, language, voice) — no DB column needed.
           const text = sound.text_content;
           const language = sound.language ?? 'en-US';
           const voice = sound.voice ?? 'en-US-AvaMultilingualNeural';
-
           if (!text) continue;
 
-          if (sound.cache_key) {
-            url = `${r2Base}/${sound.cache_key}`;
-          } else {
-            try {
-              url = await getOrGenerateTTS(env, text, language, voice);
-              const cacheKey = await computeCacheKey(text, language, voice);
-              await execute(db, 'UPDATE sounds SET cache_key = ? WHERE id = ?', [
-                cacheKey,
-                sound.id,
-              ]);
-            } catch {
-              // TTS not yet implemented — skip gracefully
-              continue;
-            }
+          try {
+            url = await getOrGenerateTTS(env, text, language, voice);
+          } catch {
+            continue;
           }
         }
 
