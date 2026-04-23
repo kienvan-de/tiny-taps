@@ -81,7 +81,7 @@ const languageLabelsJson = JSON.stringify(LANGUAGE_LABELS);
               <div class="card-sounds-count">{sndList.length} sound{sndList.length !== 1 ? 's' : ''}</div>
             </div>
             <div class="card-actions">
-              <button class="btn btn-sm btn-edit" data-id={s.id}>Edit</button>
+              <button class="btn btn-sm btn-edit" data-id={s.id} data-title={s.title}>Edit</button>
               <button class="btn btn-sm btn-danger" data-id={s.id} data-title={s.title}>Delete</button>
             </div>
           </div>
@@ -466,6 +466,26 @@ document.addEventListener('keydown', (e) => {
 
 // ── Open modal for new subject ────────────────────────────
 document.getElementById('addSubjectBtn').addEventListener('click', () => openModal('add'));
+
+// ── Edit subject ──────────────────────────────────────────
+document.querySelectorAll('.btn-edit').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const subjectId = btn.dataset.id;
+    const title = btn.dataset.title;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const res = await fetch(`/api/admin/sounds?subject_id=${subjectId}`);
+      const sounds = res.ok ? await res.json() : [];
+      openModal('edit', { id: subjectId, title, sounds });
+    } catch {
+      alert('Failed to load subject');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Edit';
+    }
+  });
+});
 
 // ── Delete subject ────────────────────────────────────────
 document.querySelectorAll('.btn-danger').forEach(btn => {
