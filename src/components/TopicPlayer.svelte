@@ -3,7 +3,6 @@
   import SubjectStack from './SubjectStack.svelte';
   import AudioEngine from './AudioEngine.svelte';
   import type { ResolvedSound, AudioEngineAPI } from './AudioEngine.svelte';
-  
 
   interface Props {
     slug: string;
@@ -17,7 +16,6 @@
     title: string;
     imageUrl: string | null;
     sortOrder: number;
-    sounds: ResolvedSound[];
   }
 
   interface ApiResponse {
@@ -31,15 +29,10 @@
   let error = $state<string | null>(null);
   let audioEngine = $state<AudioEngineAPI | null>(null);
 
-  // Derived: the subjects prop AudioEngine needs
-  let audioSubjects = $derived(subjects.map(s => ({
-    subjectId: s.id,
-    sounds: s.sounds,
-  })));
+  // Track loading state per subject: null = not loaded, true = loading, false = loaded
+  let soundLoadState = $state<Record<string, 'idle' | 'loading' | 'ready' | 'error'>>({});
 
-  let hasSounds = $derived(audioSubjects.some(s => s.sounds.length > 0));
-
-  // ── Fetch subjects at runtime ─────────────────────────────────────────────
+  // ── Fetch subjects (no sounds) ────────────────────────────────────────────
   $effect(() => {
     fetch(`/api/topics/${slug}/subjects`)
       .then(r => {
@@ -48,6 +41,10 @@
       })
       .then(data => {
         subjects = data.subjects ?? [];
+        // Initialise all subjects as idle
+        const state: Record<string, 'idle' | 'loading' | 'ready' | 'error'> = {};
+        for (const s of subjects) state[s.id] = 'idle';
+        soundLoadState = state;
         loading = false;
       })
       .catch(e => {
@@ -61,13 +58,37 @@
     audioEngine = engine;
   }
 
-  function handleTap(subjectId: string, onDone?: () => void) {
-    audioEngine?.play(subjectId, onDone);
+  async function handleTap(subjectId: string, onDone?: () => void) {
+    if (!audioEngine) return;
+
+    const state = soundLoadState[subjectId];
+
+    // If already loading, ignore the tap (debounce)
+    if (state === 'loading') return;
+
+    // If sounds not yet fetched, fetch + decode first
+    if (state === 'idle' || state === 'error') {
+      soundLoadState = { ...soundLoadState, [subjectId]: 'loading' };
+      try {
+        const res = await fetch(`/api/subjects/${subjectId}/sounds`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as { sounds: ResolvedSound[] };
+        await audioEngine.loadSubject(subjectId, data.sounds);
+        soundLoadState = { ...soundLoadState, [subjectId]: 'ready' };
+      } catch (err) {
+        console.warn('[TopicPlayer] Failed to load sounds for', subjectId, err);
+        soundLoadState = { ...soundLoadState, [subjectId]: 'error' };
+        onDone?.();
+        return;
+      }
+    }
+
+    // Sounds are ready — play
+    await audioEngine.play(subjectId, onDone);
   }
 </script>
 
 {#if loading}
-  <!-- Loading state — match the loading overlay style from the static page -->
   <div class="loading-state">
     <div class="loading-spinner">
       <i class="ph-bold ph-music-notes" style="font-size:48px; color:#FF4B4B;" aria-hidden="true"></i>
@@ -80,13 +101,14 @@
   </div>
 
 {:else if subjects.length === 0}
-  <!-- Empty state handled by parent page -->
+  <!-- empty -->
 
 {:else}
   <!-- ── Mobile: card stack ─────────────────────────────────────────────── -->
   <div class="layout-stack">
     <SubjectStack
       {subjects}
+      {soundLoadState}
       onTap={handleTap}
     />
   </div>
@@ -100,7 +122,7 @@
             id={subject.id}
             title={subject.title}
             imageUrl={subject.imageUrl}
-            sounds={subject.sounds}
+            soundState={soundLoadState[subject.id] ?? 'idle'}
             onTap={handleTap}
           />
         </div>
@@ -108,17 +130,11 @@
     </div>
   </div>
 
-  <!-- AudioEngine: headless, preloads + plays sounds -->
-  {#if hasSounds}
-    <AudioEngine
-      subjects={audioSubjects}
-      onReady={handleAudioReady}
-    />
-  {/if}
+  <!-- AudioEngine: headless, plays decoded sounds -->
+  <AudioEngine onReady={handleAudioReady} />
 {/if}
 
 <style>
-  /* ── Loading ─────────────────────────────────────────────────────────── */
   .loading-state {
     display: flex;
     align-items: center;
@@ -147,7 +163,6 @@
     font-size: 16px;
   }
 
-  /* ── Layout switching (mobile stack vs tablet grid) ──────────────────── */
   .layout-stack {
     display: flex;
     flex-direction: column;
@@ -166,7 +181,6 @@
     .layout-grid  { display: block; }
   }
 
-  /* ── Subject grid ────────────────────────────────────────────────────── */
   .subject-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

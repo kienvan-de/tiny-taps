@@ -1,20 +1,20 @@
 <script lang="ts">
-  import type { ResolvedSound } from './AudioEngine.svelte';
+  import type { AudioEngineAPI } from './AudioEngine.svelte';
 
 
   interface Props {
     id: string;
     title: string;
     imageUrl?: string | null;
-    sounds?: ResolvedSound[];
-    onTap?: (subjectId: string) => void;
+    soundState?: 'idle' | 'loading' | 'ready' | 'error';
+    onTap?: (subjectId: string, onDone?: () => void) => void;
   }
 
   let {
     id,
     title,
     imageUrl = null,
-    sounds = [],
+    soundState = 'idle',
     onTap,
   }: Props = $props();
 
@@ -111,6 +111,13 @@
     </div>
   {/if}
 
+  <!-- Loading overlay — shown while sounds are being fetched/decoded -->
+  {#if soundState === 'loading'}
+    <div class="card-loading-overlay">
+      <div class="card-spinner"></div>
+    </div>
+  {/if}
+
   <!-- Title overlay — shown on tap, fades out after 1.5s -->
   <div class="card-title-overlay" class:visible={showTitle}>
     <span class="card-title">{title.toUpperCase()}</span>
@@ -198,6 +205,32 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* ── Loading overlay ────────────────────────────────────────────────── */
+  .card-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 20px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .card-spinner {
+    width: 36px;
+    height: 36px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* ── Title overlay ───────────────────────────────────────────────────── */
