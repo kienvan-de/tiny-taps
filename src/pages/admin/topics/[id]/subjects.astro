@@ -81,7 +81,7 @@ const languageLabelsJson = JSON.stringify(LANGUAGE_LABELS);
               <div class="card-sounds-count">{sndList.length} sound{sndList.length !== 1 ? 's' : ''}</div>
             </div>
             <div class="card-actions">
-              <button class="btn btn-sm btn-edit" data-id={s.id} data-title={s.title}>Edit</button>
+              <button class="btn btn-sm btn-edit" data-id={s.id} data-title={s.title} data-image-key={s.image_key ?? ''} data-image-url={s.image_key ? imageUrl(s.image_key) : ''}>Edit</button>
               <button class="btn btn-sm btn-danger" data-id={s.id} data-title={s.title}>Delete</button>
             </div>
           </div>
@@ -241,6 +241,17 @@ function openModal(mode = 'add', subject = null) {
   titleInput.value = subject?.title ?? '';
   soundRows.innerHTML = '';
   resetImageUpload();
+
+  // Pre-load existing image when editing
+  if (mode === 'edit' && subject?.imageUrl) {
+    uploadedImageKey = subject.imageKey;
+    imgPreview.src = subject.imageUrl;
+    imgPreviewWrap.style.display = 'block';
+    imgPlaceholder.style.display = 'none';
+    imgStatus.textContent = '✓ Uploaded';
+    imgStatus.style.color = '#16a34a';
+    imgStatus.style.display = 'block';
+  }
 
   if (mode === 'edit' && subject?.sounds?.length) {
     subject.sounds.forEach(s => addSoundRow(s));
@@ -416,7 +427,7 @@ saveBtn.addEventListener('click', async () => {
       await fetch('/api/admin/subjects', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: subjectId, title }),
+        body: JSON.stringify({ id: subjectId, title, ...(uploadedImageKey ? { image_key: uploadedImageKey } : {}) }),
       });
     }
 
@@ -472,12 +483,14 @@ document.querySelectorAll('.btn-edit').forEach(btn => {
   btn.addEventListener('click', async () => {
     const subjectId = btn.dataset.id;
     const title = btn.dataset.title;
+    const imageKey = btn.dataset.imageKey ?? '';
+    const imageUrl = btn.dataset.imageUrl ?? '';
     btn.disabled = true;
     btn.textContent = '…';
     try {
       const res = await fetch(`/api/admin/sounds?subject_id=${subjectId}`);
       const sounds = res.ok ? await res.json() : [];
-      openModal('edit', { id: subjectId, title, sounds });
+      openModal('edit', { id: subjectId, title, sounds, imageKey, imageUrl });
     } catch {
       alert('Failed to load subject');
     } finally {
