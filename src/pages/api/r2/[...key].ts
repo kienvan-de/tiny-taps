@@ -7,7 +7,6 @@
  */
 import type { APIContext } from 'astro';
 
-export const prerender = false;
 
 // Content-type map for common asset types
 const MIME: Record<string, string> = {

@@ -1,7 +1,6 @@
 import type { APIContext } from 'astro';
 import { queryAll } from '../../lib/db';
 
-export const prerender = false;
 
 type TagRow = {
   id: string;

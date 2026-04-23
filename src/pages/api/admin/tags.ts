@@ -1,7 +1,6 @@
 import type { APIContext } from 'astro';
 import { queryAll, queryFirst, execute, generateId } from '../../../lib/db';
 
-export const prerender = false;
 
 export async function GET(context: APIContext) {
   const db = context.locals.env.DB;

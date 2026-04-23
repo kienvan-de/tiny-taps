@@ -1,7 +1,6 @@
 import type { APIContext } from 'astro';
 import { queryAll, queryFirst, execute, generateId, slugify } from '../../../lib/db';
 
-export const prerender = false;
 
 type TopicRow = {
   id: string;

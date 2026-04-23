@@ -1,7 +1,6 @@
 import type { APIContext } from 'astro';
 import { login } from '../../../lib/auth';
 
-export const prerender = false;
 
 export async function POST(context: APIContext) {
   const env = context.locals.env;

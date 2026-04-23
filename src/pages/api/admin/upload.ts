@@ -2,7 +2,6 @@ import type { APIContext } from 'astro';
 import { putObject, getPublicUrl } from '../../../lib/r2';
 import { generateId } from '../../../lib/db';
 
-export const prerender = false;
 
 export async function POST(context: APIContext) {
   const env = context.locals.env;

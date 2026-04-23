@@ -3,7 +3,6 @@ import { queryAll } from '../../../../lib/db';
 
 import { getOrGenerateTTS } from '../../../../lib/tts';
 
-export const prerender = false;
 
 type SubjectRow = {
   id: string;
