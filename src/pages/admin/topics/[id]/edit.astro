@@ -187,8 +187,7 @@ const topicTagIds = new Set((topicTagRows.results as any[]).map((r) => r.tag_id)
     }
   </style>
 
-  <script>
-    // @ts-nocheck
+  <script is:inline>
     const slugInput = document.getElementById('slugInput');
     const slugPreview = document.getElementById('slugPreview');
     const form = document.getElementById('editTopicForm');

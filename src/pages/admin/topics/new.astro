@@ -134,14 +134,13 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
     </div>
   </div>
 
-  <script>
-    // @ts-nocheck
-    const titleInput = document.getElementById('titleInput') as HTMLInputElement;
-    const slugInput = document.getElementById('slugInput') as HTMLInputElement;
-    const slugPreview = document.getElementById('slugPreview') as HTMLElement;
-    const form = document.getElementById('newTopicForm') as HTMLFormElement;
-    const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-    const errorMsg = document.getElementById('errorMsg') as HTMLElement;
+  <script is:inline>
+    const titleInput = document.getElementById('titleInput');
+    const slugInput = document.getElementById('slugInput');
+    const slugPreview = document.getElementById('slugPreview');
+    const form = document.getElementById('newTopicForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorMsg = document.getElementById('errorMsg');
 
     let slugManuallyEdited = false;
 
@@ -210,8 +209,8 @@ const tags = await env.DB.prepare('SELECT * FROM tags ORDER BY sort_order ASC, n
           const topic = await res.json();
           window.location.href = `/admin/topics/${topic.id}/subjects`;
         } else {
-          const err = await res.json().catch(() => ({} as Record<string, string>));
-          errorMsg.textContent = err['error'] ?? 'Failed to create topic.';
+          const err = await res.json().catch(() => ({}));
+          errorMsg.textContent = err.error ?? 'Failed to create topic.';
           errorMsg.style.display = 'block';
           submitBtn.disabled = false;
           submitBtn.textContent = 'Create Topic';
