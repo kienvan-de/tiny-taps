@@ -1,18 +1,14 @@
 ---
+export const prerender = false;
 import PublicLayout from '../../layouts/PublicLayout.astro';
 import NavHome from '../../components/NavHome.svelte';
 import TopicPlayer from '../../components/TopicPlayer.svelte';
-import { env as cfEnv } from 'cloudflare:workers';
-
-export async function getStaticPaths() {
-  const result = await cfEnv.DB.prepare('SELECT slug FROM topics').all<{ slug: string }>();
-  return (result.results ?? []).map(({ slug }) => ({ params: { slug } }));
-}
 
 const { slug } = Astro.params;
-const env = cfEnv as App.Locals['env'];
+const env = Astro.locals.env;
 
-// Fetch just the topic title for the page <title> and header — lightweight, no subjects needed
+if (!slug) return Astro.redirect('/');
+
 const topic = await env.DB.prepare('SELECT title FROM topics WHERE slug = ?')
   .bind(slug)
   .first<{ title: string }>();
