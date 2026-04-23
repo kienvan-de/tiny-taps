@@ -427,7 +427,7 @@ saveBtn.addEventListener('click', async () => {
       await fetch('/api/admin/subjects', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: subjectId, title, ...(uploadedImageKey ? { image_key: uploadedImageKey } : {}) }),
+        body: JSON.stringify({ id: subjectId, title, image_key: uploadedImageKey }),
       });
     }
 
