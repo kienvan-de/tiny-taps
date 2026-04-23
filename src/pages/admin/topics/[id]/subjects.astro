@@ -431,8 +431,15 @@ saveBtn.addEventListener('click', async () => {
       });
     }
 
-    // Save sounds
+    // Save sounds — delete all existing first, then re-create
     const soundData = collectSounds();
+    if (editingSubjectId) {
+      await fetch('/api/admin/sounds', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject_id: subjectId }),
+      });
+    }
     for (const s of soundData) {
       const payload = {
         subject_id: subjectId,

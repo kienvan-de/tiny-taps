@@ -133,13 +133,20 @@ export async function PUT(context: APIContext) {
 
 export async function DELETE(context: APIContext) {
   const db = context.locals.env.DB;
-  let body: { id: string };
+  let body: { id?: string; subject_id?: string };
   try {
     body = await context.request.json();
   } catch {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  if (!body.id) return Response.json({ error: 'id is required' }, { status: 400 });
+
+  // Bulk delete all sounds for a subject
+  if (body.subject_id) {
+    await execute(db, 'DELETE FROM sounds WHERE subject_id = ?', [body.subject_id]);
+    return Response.json({ ok: true });
+  }
+
+  if (!body.id) return Response.json({ error: 'id or subject_id is required' }, { status: 400 });
 
   const existing = await queryFirst<SoundRow>(db, 'SELECT * FROM sounds WHERE id = ?', [body.id]);
   if (!existing) return Response.json({ error: 'Not found' }, { status: 404 });
