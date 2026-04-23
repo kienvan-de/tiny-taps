@@ -168,12 +168,18 @@
     flex-direction: column;
     width: 100%;
     height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .layout-grid {
     display: none;
     width: 100%;
     height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 24px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 600px) {
