@@ -11,7 +11,7 @@ export default defineConfig({
       enabled: true,
     },
   }),
-  integrations: [svelte()],
+  integrations: [svelte({ emitCss: false })],
   vite: {
     plugins: [tailwindcss()],
   },
