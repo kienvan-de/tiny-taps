@@ -12,7 +12,7 @@
     soundLoadState?: Record<string, 'idle' | 'loading' | 'ready' | 'error'>;
     isPlaying?: boolean;
     activeSubjectId?: string | null;
-    onTap?: (subjectId: string, onDone?: () => void) => void;
+    onTap?: (subjectId: string, rect: DOMRect, onDone?: () => void) => void;
   }
 
   let { subjects = [], soundLoadState = {}, isPlaying = false, activeSubjectId = null, onTap }: Props = $props();
@@ -30,6 +30,7 @@
   let pointerId = $state<number | null>(null);
   // Two-tap pattern: first tap = show title + play audio, second tap = fly to next
   let tapped = $state(false);
+  let currentCardEl = $state<HTMLDivElement | null>(null);
 
   // onTap callback fired on card tap — parent (TopicPlayer) wires it to AudioEngine.play()
 
@@ -63,7 +64,8 @@
       titleTimer = setTimeout(() => { showTitle = false; }, 1500);
 
       if (current) {
-        onTap?.(current.id, () => {
+        const rect = currentCardEl?.getBoundingClientRect() ?? new DOMRect();
+        onTap?.(current.id, rect, () => {
           // Audio finished — auto-advance to next card if not already navigated
           if (tapped && hasNext) {
             tapped = false;
@@ -84,7 +86,8 @@
       } else {
         // Last card — replay audio
         if (current) {
-          onTap?.(current.id);
+          const rect = currentCardEl?.getBoundingClientRect() ?? new DOMRect();
+          onTap?.(current.id, rect);
           showTitle = true;
           if (titleTimer) clearTimeout(titleTimer);
           titleTimer = setTimeout(() => { showTitle = false; }, 1500);
@@ -203,6 +206,7 @@
     {#if current}
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
+        bind:this={currentCardEl}
         class="card card-current"
         class:pressed={pressed}
         class:fly-in-up={incomingActive && outgoingDir === 'up'}
@@ -218,7 +222,10 @@
         onkeydown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            if (current) onTap?.(current.id);
+            if (current) {
+              const rect = currentCardEl?.getBoundingClientRect() ?? new DOMRect();
+              onTap?.(current.id, rect);
+            }
           } else if (e.key === 'ArrowRight') goNext();
           else if (e.key === 'ArrowLeft') goPrev();
         }}

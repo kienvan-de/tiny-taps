@@ -2,6 +2,7 @@
   import SubjectCard from './SubjectCard.svelte';
   import SubjectStack from './SubjectStack.svelte';
   import AudioEngine from './AudioEngine.svelte';
+  import SubjectOverlay from './SubjectOverlay.svelte';
   import type { ResolvedSound, AudioEngineAPI } from './AudioEngine.svelte';
 
   interface Props {
@@ -36,6 +37,11 @@
   let isPlaying = $state(false);
   let activeSubjectId = $state<string | null>(null);
 
+  // Overlay
+  let overlaySubject = $state<Subject | null>(null);
+  let overlayRef = $state<SubjectOverlay | null>(null);
+  let overlaySourceRect = $state<DOMRect | null>(null);
+
   // ── Fetch subjects (no sounds) ────────────────────────────────────────────
   $effect(() => {
     fetch(`/api/topics/${slug}/subjects`)
@@ -62,7 +68,7 @@
     audioEngine = engine;
   }
 
-  async function handleTap(subjectId: string, onDone?: () => void) {
+  async function handleTap(subjectId: string, sourceRect: DOMRect, onDone?: () => void) {
     if (!audioEngine) return;
 
     // Guard: ignore taps on other cards while one is playing
@@ -85,19 +91,37 @@
       } catch (err) {
         console.warn('[TopicPlayer] Failed to load sounds for', subjectId, err);
         soundLoadState = { ...soundLoadState, [subjectId]: 'error' };
-        onDone?.();
+        if (overlaySubject) overlayRef?.leave();
+        else { isPlaying = false; activeSubjectId = null; }
         return;
       }
     }
 
-    // Sounds are ready — play
+    // Sounds are ready — show overlay on desktop only, then play
+    const isDesktop = window.innerWidth >= 600;
+    const subject = subjects.find(s => s.id === subjectId) ?? null;
+    if (isDesktop) {
+      overlaySubject = subject;
+      overlaySourceRect = sourceRect;
+    }
     isPlaying = true;
     activeSubjectId = subjectId;
     await audioEngine.play(subjectId, () => {
-      isPlaying = false;
-      activeSubjectId = null;
-      onDone?.();
+      if (isDesktop) {
+        overlayRef?.leave();
+      } else {
+        isPlaying = false;
+        activeSubjectId = null;
+        onDone?.();
+      }
     });
+  }
+
+  function handleOverlayLeave() {
+    overlaySubject = null;
+    overlaySourceRect = null;
+    isPlaying = false;
+    activeSubjectId = null;
   }
 </script>
 
@@ -148,6 +172,14 @@
 
   <!-- AudioEngine: headless, plays decoded sounds -->
   <AudioEngine onReady={handleAudioReady} />
+
+  <!-- Subject zoom overlay -->
+  <SubjectOverlay
+    bind:this={overlayRef}
+    subject={overlaySubject}
+    sourceRect={overlaySourceRect}
+    onLeave={handleOverlayLeave}
+  />
 {/if}
 
 <style>

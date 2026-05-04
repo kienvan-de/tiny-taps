@@ -8,7 +8,7 @@
     imageUrl?: string | null;
     soundState?: 'idle' | 'loading' | 'ready' | 'error';
     disabled?: boolean;
-    onTap?: (subjectId: string, onDone?: () => void) => void;
+    onTap?: (subjectId: string, rect: DOMRect, onDone?: () => void) => void;
   }
 
   let {
@@ -25,6 +25,7 @@
   let showTitle = $state(false);
   let pointerId = $state<number | null>(null);
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
+  let cardEl = $state<HTMLDivElement | null>(null);
 
   function handlePointerDown(e: PointerEvent) {
     if (disabled) return;
@@ -40,8 +41,9 @@
     pointerId = null;
     isPressed = false;
 
-    // Play audio
-    onTap?.(id);
+    // Play audio — pass current card rect for overlay origin
+    const rect = cardEl?.getBoundingClientRect() ?? new DOMRect();
+    onTap?.(id, rect);
 
     // Show title overlay for 1.5s then fade out
     showTitle = true;
@@ -79,6 +81,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
+  bind:this={cardEl}
   class="subject-card"
   class:active={isActive}
   class:pressed={isPressed}
@@ -96,7 +99,8 @@
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (disabled) return;
-      onTap?.(id);
+      const rect = cardEl?.getBoundingClientRect() ?? new DOMRect();
+      onTap?.(id, rect);
       showTitle = true;
       if (titleTimer) clearTimeout(titleTimer);
       titleTimer = setTimeout(() => { showTitle = false; }, 1500);
