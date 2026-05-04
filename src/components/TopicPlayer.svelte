@@ -29,8 +29,12 @@
   let error = $state<string | null>(null);
   let audioEngine = $state<AudioEngineAPI | null>(null);
 
-  // Track loading state per subject: null = not loaded, true = loading, false = loaded
+  // Track loading state per subject
   let soundLoadState = $state<Record<string, 'idle' | 'loading' | 'ready' | 'error'>>({});
+
+  // Playback guard
+  let isPlaying = $state(false);
+  let activeSubjectId = $state<string | null>(null);
 
   // ── Fetch subjects (no sounds) ────────────────────────────────────────────
   $effect(() => {
@@ -61,12 +65,15 @@
   async function handleTap(subjectId: string, onDone?: () => void) {
     if (!audioEngine) return;
 
+    // Guard: ignore taps on other cards while one is playing
+    if (isPlaying && activeSubjectId !== subjectId) return;
+
     const state = soundLoadState[subjectId];
 
-    // If already loading, ignore the tap (debounce)
+    // If already loading, ignore
     if (state === 'loading') return;
 
-    // If sounds not yet fetched, fetch + decode first
+    // Fetch + decode sounds on first tap
     if (state === 'idle' || state === 'error') {
       soundLoadState = { ...soundLoadState, [subjectId]: 'loading' };
       try {
@@ -84,7 +91,13 @@
     }
 
     // Sounds are ready — play
-    await audioEngine.play(subjectId, onDone);
+    isPlaying = true;
+    activeSubjectId = subjectId;
+    await audioEngine.play(subjectId, () => {
+      isPlaying = false;
+      activeSubjectId = null;
+      onDone?.();
+    });
   }
 </script>
 
@@ -109,6 +122,8 @@
     <SubjectStack
       {subjects}
       {soundLoadState}
+      {isPlaying}
+      {activeSubjectId}
       onTap={handleTap}
     />
   </div>
@@ -123,6 +138,7 @@
             title={subject.title}
             imageUrl={subject.imageUrl}
             soundState={soundLoadState[subject.id] ?? 'idle'}
+            disabled={isPlaying && activeSubjectId !== subject.id}
             onTap={handleTap}
           />
         </div>

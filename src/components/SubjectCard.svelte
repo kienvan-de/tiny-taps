@@ -7,6 +7,7 @@
     title: string;
     imageUrl?: string | null;
     soundState?: 'idle' | 'loading' | 'ready' | 'error';
+    disabled?: boolean;
     onTap?: (subjectId: string, onDone?: () => void) => void;
   }
 
@@ -15,6 +16,7 @@
     title,
     imageUrl = null,
     soundState = 'idle',
+    disabled = false,
     onTap,
   }: Props = $props();
 
@@ -25,6 +27,7 @@
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
 
   function handlePointerDown(e: PointerEvent) {
+    if (disabled) return;
     if (pointerId !== null) return;
     pointerId = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -79,9 +82,11 @@
   class="subject-card"
   class:active={isActive}
   class:pressed={isPressed}
+  class:disabled={disabled}
   role="button"
-  tabindex="0"
+  tabindex={disabled ? -1 : 0}
   aria-label={title}
+  aria-disabled={disabled}
   onpointerdown={handlePointerDown}
   onpointerup={handlePointerUp}
   onpointercancel={handlePointerCancel}
@@ -90,6 +95,7 @@
   onkeydown={(e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (disabled) return;
       onTap?.(id);
       showTitle = true;
       if (titleTimer) clearTimeout(titleTimer);
@@ -109,6 +115,11 @@
     <div class="card-image-placeholder">
       <i class="ph-bold ph-image" style="font-size:48px; color:#cbd5e1;" aria-hidden="true"></i>
     </div>
+  {/if}
+
+  <!-- Disabled overlay — shown when another card is playing -->
+  {#if disabled}
+    <div class="card-disabled-overlay" aria-hidden="true"></div>
   {/if}
 
   <!-- Loading overlay — shown while sounds are being fetched/decoded -->
@@ -269,6 +280,22 @@
   }
 
   /* ── Focus ring ──────────────────────────────────────────────────────── */
+  /* ── Disabled state (another card is playing) ───────────────────────── */
+  .subject-card.disabled {
+    animation: none;
+    cursor: not-allowed;
+  }
+
+  .card-disabled-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 200ms ease;
+  }
+
   .subject-card:focus-visible {
     outline: 4px solid #4BA3FF;
     outline-offset: 2px;

@@ -10,10 +10,12 @@
   interface Props {
     subjects: Subject[];
     soundLoadState?: Record<string, 'idle' | 'loading' | 'ready' | 'error'>;
+    isPlaying?: boolean;
+    activeSubjectId?: string | null;
     onTap?: (subjectId: string, onDone?: () => void) => void;
   }
 
-  let { subjects = [], soundLoadState = {}, onTap }: Props = $props();
+  let { subjects = [], soundLoadState = {}, isPlaying = false, activeSubjectId = null, onTap }: Props = $props();
 
   let currentIndex = $state(0);
   let animating = $state(false);
@@ -41,6 +43,7 @@
 
   function handlePointerDown(e: PointerEvent) {
     if (animating || pointerId !== null) return;
+    if (isPlaying && current && activeSubjectId !== current.id) return;
     pointerId = e.pointerId;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     pressed = true;
@@ -122,6 +125,7 @@
 
   function navigate(direction: 'next' | 'prev') {
     if (animating) return;
+    if (isPlaying) return;  // block navigation while audio is playing
     if (direction === 'next' && !hasNext) return;
     if (direction === 'prev' && !hasPrev) return;
 
@@ -290,7 +294,7 @@
     <button
       class="nav-btn nav-prev"
       onclick={goPrev}
-      disabled={!hasPrev || animating}
+      disabled={!hasPrev || animating || isPlaying}
       aria-label="Previous card"
     >
       ‹
@@ -301,7 +305,7 @@
     <button
       class="nav-btn nav-next"
       onclick={goNext}
-      disabled={!hasNext || animating}
+      disabled={!hasNext || animating || isPlaying}
       aria-label="Next card"
     >
       ›
